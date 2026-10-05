@@ -1,90 +1,149 @@
 "use client";
 
+import { KeyRound, Lock, Mail, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { AuthHeader } from "@/components/auth-header";
 import { useAuth } from "@/components/auth-provider";
-import { Field, FormError, SubmitButton } from "@/components/ui";
+import { Alert, Field, PasswordField, SubmitButton } from "@/components/ui";
 import { ApiError } from "@/lib/api";
+
+type FormValues = {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
+type FieldErrors = Partial<Record<keyof FormValues, string>>;
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Khớp với rule của RegisterDto trên server
+function validate(v: FormValues): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!v.name) errors.name = "Vui lòng nhập họ tên";
+  else if (v.name.length > 50) errors.name = "Tên tối đa 50 ký tự";
+  if (!EMAIL_RE.test(v.email)) errors.email = "Email không hợp lệ";
+  if (v.password.length < 8) errors.password = "Mật khẩu tối thiểu 8 ký tự";
+  else if (v.password.length > 72) errors.password = "Mật khẩu tối đa 72 ký tự";
+  if (v.confirmPassword !== v.password)
+    errors.confirmPassword = "Mật khẩu nhập lại không khớp";
+  return errors;
+}
 
 export default function RegisterPage() {
   const { register } = useAuth();
   const router = useRouter();
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  const clearFieldError = (key: keyof FormValues) =>
+    setFieldErrors((prev) =>
+      prev[key] ? { ...prev, [key]: undefined } : prev,
+    );
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
+    const values: FormValues = {
+      name: String(form.get("name")).trim(),
+      email: String(form.get("email")).trim(),
+      password: String(form.get("password")),
+      confirmPassword: String(form.get("confirmPassword")),
+    };
 
-    const password = String(form.get("password"));
-    if (password !== form.get("confirmPassword")) {
-      setError("Mật khẩu nhập lại không khớp");
+    const errors = validate(values);
+    setFieldErrors(errors);
+    const firstInvalid = Object.keys(errors)[0];
+    if (firstInvalid) {
+      document.getElementById(firstInvalid)?.focus();
       return;
     }
 
     setPending(true);
     setError(null);
-    const email = String(form.get("email"));
-
     try {
-      await register({ name: String(form.get("name")), email, password });
+      await register({
+        name: values.name,
+        email: values.email,
+        password: values.password,
+      });
       router.replace(
-        `/login?${new URLSearchParams({ registered: "1", email })}`,
+        `/login?${new URLSearchParams({ registered: "1", email: values.email })}`,
       );
     } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "Không thể kết nối tới máy chủ",
-      );
+      if (err instanceof ApiError && err.status === 409) {
+        // Email đã tồn tại → báo ngay tại ô email
+        setFieldErrors({ email: err.message });
+        document.getElementById("email")?.focus();
+      } else {
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : "Không thể kết nối tới máy chủ",
+        );
+      }
       setPending(false);
     }
   }
 
   return (
     <>
-      <h2 className="mb-4 text-center text-sm text-slate-500">
-        Tạo tài khoản mới
-      </h2>
-      <form onSubmit={onSubmit} className="space-y-4">
+      <AuthHeader subtitle="Tạo tài khoản mới" />
+
+      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         <Field
-          label="Họ tên"
           id="name"
+          label="Họ tên"
+          icon={User}
           autoComplete="name"
+          placeholder="Nguyễn Văn A"
           maxLength={50}
-          required
+          error={fieldErrors.name}
+          onChange={() => clearFieldError("name")}
           autoFocus
         />
         <Field
-          label="Email"
           id="email"
+          label="Email"
+          icon={Mail}
           type="email"
           autoComplete="email"
-          required
+          placeholder="nguyenvana@gmail.com"
+          error={fieldErrors.email}
+          onChange={() => clearFieldError("email")}
         />
-        <Field
-          label="Mật khẩu"
+        <PasswordField
           id="password"
-          type="password"
+          label="Mật khẩu"
+          icon={Lock}
           autoComplete="new-password"
-          minLength={8}
-          maxLength={72}
-          required
+          hint="Tối thiểu 8 ký tự"
+          placeholder="Nhập mật khẩu"
+          error={fieldErrors.password}
+          onChange={() => clearFieldError("password")}
         />
-        <Field
-          label="Nhập lại mật khẩu"
+        <PasswordField
           id="confirmPassword"
-          type="password"
+          label="Nhập lại mật khẩu"
+          icon={KeyRound}
           autoComplete="new-password"
-          required
+          placeholder="Nhập lại mật khẩu"
+          labelAside={fieldErrors.confirmPassword ? "Không khớp" : undefined}
+          error={fieldErrors.confirmPassword}
+          onChange={() => clearFieldError("confirmPassword")}
         />
-        <FormError message={error} />
+        {error && <Alert tone="error">{error}</Alert>}
         <SubmitButton pending={pending}>Đăng ký</SubmitButton>
       </form>
-      <p className="mt-6 text-center text-sm text-slate-600">
+
+      <p className="mt-6 text-center text-sm text-ink-subtle">
         Đã có tài khoản?{" "}
         <Link
           href="/login"
-          className="font-medium text-blue-600 hover:underline"
+          className="font-semibold text-brand transition-colors hover:text-brand-hover hover:underline"
         >
           Đăng nhập
         </Link>

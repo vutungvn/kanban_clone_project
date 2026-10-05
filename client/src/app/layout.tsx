@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import { AuthProvider } from "@/components/auth-provider";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin", "vietnamese"],
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: "Kanban",
@@ -13,8 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi">
-      <body className="bg-slate-50 text-slate-900 antialiased">
+    <html lang="vi" className={inter.variable}>
+      <body className="bg-surface text-ink antialiased">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

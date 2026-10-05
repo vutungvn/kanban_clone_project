@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Chỉ kiểm tra "có cookie phiên hay không" để điều hướng nhanh.
 // Việc xác thực thật sự do API server đảm nhiệm.
-const PROTECTED_PREFIXES = ['/boards'];
+const PROTECTED_PREFIXES = ['/boards', '/b/'];
 const AUTH_PAGES = ['/login', '/register'];
 
 export function middleware(req: NextRequest) {
@@ -23,5 +23,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/boards/:path*', '/login', '/register'],
+  matcher: ['/boards/:path*', '/b/:path*', '/login', '/register'],
 };
