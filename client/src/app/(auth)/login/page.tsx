@@ -1,12 +1,15 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { FormEvent, Suspense, useState } from 'react';
-import { useAuth } from '@/components/auth-provider';
-import { Field, FormError, SubmitButton } from '@/components/ui';
-import { ApiError } from '@/lib/api';
-import { getSafeNextPath } from '@/lib/auth';
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
+import { AuthHeader } from "@/components/auth-header";
+import { useAuth } from "@/components/auth-provider";
+import { Alert, Field, PasswordField, SubmitButton } from "@/components/ui";
+import { ApiError } from "@/lib/api";
+import { getSafeNextPath } from "@/lib/auth";
+
+type FieldErrors = Partial<Record<"email" | "password", string>>;
 
 export default function LoginPage() {
   // useSearchParams cần Suspense boundary khi build
@@ -21,58 +24,99 @@ function LoginForm() {
   const { login } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const justRegistered = searchParams.get('registered') === '1';
-  const prefillEmail = searchParams.get('email') ?? '';
+  const prefillEmail = searchParams.get("email") ?? "";
 
+  const [showRegistered, setShowRegistered] = useState(
+    searchParams.get("registered") === "1",
+  );
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  const clearFieldError = (key: keyof FieldErrors) =>
+    setFieldErrors((prev) =>
+      prev[key] ? { ...prev, [key]: undefined } : prev,
+    );
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
+    const email = String(form.get("email")).trim();
+    const password = String(form.get("password"));
+
+    const errors: FieldErrors = {};
+    if (!email) errors.email = "Vui lòng nhập email";
+    if (!password) errors.password = "Vui lòng nhập mật khẩu";
+    setFieldErrors(errors);
+    const firstInvalid = Object.keys(errors)[0];
+    if (firstInvalid) {
+      document.getElementById(firstInvalid)?.focus();
+      return;
+    }
+
     setPending(true);
     setError(null);
     try {
-      await login({ email: String(form.get('email')), password: String(form.get('password')) });
+      await login({ email, password });
       router.replace(getSafeNextPath());
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Không thể kết nối tới máy chủ');
+      setShowRegistered(false);
+      setError(
+        err instanceof ApiError ? err.message : "Không thể kết nối tới máy chủ",
+      );
       setPending(false);
     }
   }
 
   return (
     <>
-      <h2 className="mb-4 text-center text-sm text-slate-500">Đăng nhập vào tài khoản của bạn</h2>
-      {justRegistered && !error && (
-        <p role="status" className="mb-4 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-          Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.
-        </p>
+      <AuthHeader subtitle="Đăng nhập vào tài khoản của bạn" />
+
+      {showRegistered && (
+        <div className="mb-4">
+          <Alert tone="success" onClose={() => setShowRegistered(false)}>
+            Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.
+          </Alert>
+        </div>
       )}
-      <form onSubmit={onSubmit} className="space-y-4">
+
+      <form onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
         <Field
-          label="Email"
           id="email"
+          label="Email"
           type="email"
           autoComplete="email"
+          placeholder="nguyenvana@gmail.com"
           defaultValue={prefillEmail}
-          required
+          error={fieldErrors.email}
+          onChange={() => clearFieldError("email")}
           autoFocus={!prefillEmail}
         />
-        <Field
-          label="Mật khẩu"
+        <PasswordField
           id="password"
-          type="password"
+          label="Mật khẩu"
           autoComplete="current-password"
-          required
+          placeholder="Nhập mật khẩu"
+          error={fieldErrors.password}
+          onChange={() => clearFieldError("password")}
           autoFocus={!!prefillEmail}
         />
-        <FormError message={error} />
+        {error && <Alert tone="error">{error}</Alert>}
         <SubmitButton pending={pending}>Đăng nhập</SubmitButton>
       </form>
-      <p className="mt-6 text-center text-sm text-slate-600">
-        Chưa có tài khoản?{' '}
-        <Link href="/register" className="font-medium text-blue-600 hover:underline">
+
+      <div className="my-4 flex items-center gap-3 text-xs text-ink-subtle">
+        <span className="h-px flex-1 bg-surface-highest" />
+        hoặc
+        <span className="h-px flex-1 bg-surface-highest" />
+      </div>
+
+      <p className="text-center text-sm text-ink-subtle">
+        Chưa có tài khoản?{" "}
+        <Link
+          href="/register"
+          className="font-semibold text-brand transition-colors hover:text-brand-hover hover:underline"
+        >
           Đăng ký
         </Link>
       </p>

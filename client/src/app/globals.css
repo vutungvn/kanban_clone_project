@@ -1,6 +1,29 @@
 @import 'tailwindcss';
 
-body {
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+/* Design tokens — lấy từ thiết kế Stitch "Kanban Task Management Webapp" */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial,
     sans-serif;
+
+  /* Thương hiệu & chữ */
+  --color-brand: #0c66e4;
+  --color-brand-hover: #004fb6;
+  --color-ink: #041b3c;
+  --color-ink-subtle: #424654;
+  --color-outline: #727786;
+  --color-navy: #1d3052; /* thanh header của app */
+
+  /* Bề mặt (nhạt → đậm) */
+  --color-surface: #f9f9ff;
+  --color-surface-low: #f1f3ff;
+  --color-surface-mid: #e8edff;
+  --color-surface-high: #e0e8ff;
+  --color-surface-highest: #d7e2ff;
+
+  /* Trạng thái */
+  --color-danger: #ba1a1a;
+  --color-danger-soft: #ffdad6;
+  --color-success: #006c47;
+  --color-success-ink: #00734b;
+  --color-success-soft: #97f6c3;
 }
