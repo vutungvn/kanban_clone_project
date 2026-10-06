@@ -16,6 +16,8 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   sessions     Session[]
+  ownedBoards  Board[]
+  memberships  BoardMember[]
 
   @@map("users")
 }
@@ -33,4 +35,71 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+model Board {
+  id         String        @id @default(cuid())
+  title      String
+  // Key phông nền dựng sẵn — xem BOARD_BACKGROUNDS trong src/boards/boards.constants.ts
+  background String
+  ownerId    String
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  owner      User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members    BoardMember[]
+  lists      List[]
+
+  @@index([ownerId])
+  @@map("boards")
+}
+
+enum BoardRole {
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+// User ↔ Board. Đánh dấu sao & lần xem gần nhất là của từng người nên nằm ở đây.
+model BoardMember {
+  boardId      String
+  userId       String
+  role         BoardRole @default(MEMBER)
+  starred      Boolean   @default(false)
+  lastViewedAt DateTime?
+  joinedAt     DateTime  @default(now())
+  board        Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([boardId, userId])
+  @@index([userId])
+  @@map("board_members")
+}
+
+// position: số thực, sắp xếp tăng dần. Chèn giữa 2 phần tử = trung bình cộng → chỉ cập nhật 1 dòng.
+model List {
+  id        String   @id @default(cuid())
+  boardId   String
+  title     String
+  position  Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards     Card[]
+
+  @@index([boardId, position])
+  @@map("lists")
+}
+
+model Card {
+  id          String   @id @default(cuid())
+  listId      String
+  title       String
+  description String?
+  position    Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  list        List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@index([listId, position])
+  @@map("cards")
 }
