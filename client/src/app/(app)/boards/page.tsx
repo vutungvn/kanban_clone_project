@@ -15,13 +15,14 @@ import { BoardTile, CreateBoardTile } from '@/components/boards/board-tile';
 import { BoardsSidebar } from '@/components/boards/boards-sidebar';
 import { CreateBoardPopover } from '@/components/boards/create-board-popover';
 import { usePopoverAnchor } from '@/components/popover';
-import { compareRecent, useBoards } from '@/lib/boards-store';
+import { boardsStore, compareRecent, useBoardsState } from '@/lib/boards-store';
 
 type SortKey = 'recent' | 'alpha';
 
 export default function BoardsPage() {
   const { user } = useAuth(); // layout đảm bảo đã có user
-  const boards = useBoards();
+  const { boards, status: rawStatus, error: loadError } = useBoardsState();
+  const status = rawStatus === 'idle' ? 'loading' : rawStatus;
   const createBoard = usePopoverAnchor();
   const [sort, setSort] = useState<SortKey>('recent');
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
@@ -102,9 +103,22 @@ export default function BoardsPage() {
           <BoardSection
             icon={<LayoutDashboard size={20} className="text-ink-subtle" />}
             title="Bảng của bạn"
-            aside={filtering ? `${visible.length}/${boards.length} bảng` : `${boards.length} bảng`}
+            aside={
+              status !== 'ready' ? undefined : filtering ? `${visible.length}/${boards.length} bảng` : `${boards.length} bảng`
+            }
             empty={
-              filtering && visible.length === 0 ? (
+              status === 'error' ? (
+                <>
+                  {loadError}{' '}
+                  <button
+                    type="button"
+                    onClick={() => void boardsStore.load(true)}
+                    className="font-semibold text-brand hover:underline"
+                  >
+                    Thử lại
+                  </button>
+                </>
+              ) : filtering && visible.length === 0 ? (
                 <>
                   Không có bảng nào khớp với bộ lọc.{' '}
                   <button
@@ -118,10 +132,12 @@ export default function BoardsPage() {
               ) : undefined
             }
           >
-            {visible.map((board) => (
-              <BoardTile key={board.id} board={board} />
-            ))}
-            {!filtering && <CreateBoardTile onClick={createBoard.toggle} />}
+            {status === 'loading'
+              ? Array.from({ length: 4 }, (_, i) => (
+                  <div key={i} aria-hidden className="h-24 animate-pulse rounded-lg bg-surface-mid" />
+                ))
+              : visible.map((board) => <BoardTile key={board.id} board={board} />)}
+            {!filtering && status === 'ready' && <CreateBoardTile onClick={createBoard.toggle} />}
           </BoardSection>
         </div>
       </main>
@@ -151,7 +167,7 @@ function BoardSection({
           {icon}
           {title}
         </h2>
-        {aside && <span className="text-xs font-medium text-ink-subtle">{aside}</span>}
+        {aside && <span className="text-sm font-medium text-ink-subtle">{aside}</span>}
       </div>
       {empty ? (
         <div className="rounded-lg bg-surface-low px-4 py-6 text-center text-sm text-ink-subtle">{empty}</div>

@@ -12,6 +12,7 @@
   --color-ink-subtle: #424654;
   --color-outline: #727786;
   --color-navy: #1d3052; /* thanh header của app */
+  --color-list: #f1f2f4; /* nền cột danh sách trong board */
 
   /* Bề mặt (nhạt → đậm) */
   --color-surface: #f9f9ff;

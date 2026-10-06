@@ -12,6 +12,11 @@ export class ApiError extends Error {
   }
 }
 
+/** Thông báo lỗi hiển thị cho người dùng từ một lỗi bất kỳ. */
+export function errorMessage(e: unknown) {
+  return e instanceof ApiError ? e.message : 'Không thể kết nối tới máy chủ';
+}
+
 let refreshing: Promise<boolean> | null = null;
 
 /** Gộp các lần refresh đồng thời thành 1 request. */

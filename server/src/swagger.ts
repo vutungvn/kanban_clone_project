@@ -29,6 +29,16 @@ Mọi lỗi trả về \`{ statusCode, message, error }\`. Lỗi validate (400) 
 ### Rate limit
 
 Mặc định 100 request/phút/IP; \`/auth/register\` và \`/auth/login\` giới hạn 5 request/phút/IP (vượt quá → 429).
+
+### Phân quyền trong bảng
+
+| Vai trò | Được làm |
+| --- | --- |
+| \`ADMIN\` | Mọi quyền của MEMBER + đổi tên / phông nền, xoá bảng (người tạo bảng là ADMIN) |
+| \`MEMBER\` | Thêm, sửa, xoá danh sách và thẻ |
+| \`VIEWER\` | Chỉ xem (vẫn đánh dấu sao được — sao là của riêng từng người) |
+
+Không phải thành viên của bảng → **404** (không để lộ bảng có tồn tại hay không). Là thành viên nhưng thiếu quyền → **403**.
 `;
 
 export function setupSwagger(app: INestApplication) {
@@ -42,6 +52,9 @@ export function setupSwagger(app: INestApplication) {
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'Access token (thay cho cookie)' })
     .addTag('Health', 'Kiểm tra trạng thái server')
     .addTag('Auth', 'Đăng ký, đăng nhập, quản lý phiên')
+    .addTag('Boards', 'Bảng công việc')
+    .addTag('Lists', 'Danh sách (cột) trong bảng')
+    .addTag('Cards', 'Thẻ công việc trong danh sách')
     .build();
 
   // Path trong document không chứa prefix "/api" vì đã khai báo ở servers

@@ -1,13 +1,15 @@
 'use client';
 
-import { Check, LoaderCircle } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { useAuth } from '@/components/auth-provider';
 import { Popover, PopoverHeader } from '@/components/popover';
 import { Alert } from '@/components/ui';
-import { BACKGROUND_KEYS, BOARD_BACKGROUNDS, type BoardBackground } from '@/lib/board-backgrounds';
+import { errorMessage } from '@/lib/api';
+import { BOARD_BACKGROUNDS, type BoardBackground } from '@/lib/board-backgrounds';
 import { boardsStore, type BoardSummary } from '@/lib/boards-store';
 import { cn } from '@/lib/cn';
+import { BackgroundPicker } from './background-picker';
 
 export function CreateBoardPopover({
   anchor,
@@ -33,7 +35,7 @@ function CreateBoardForm({
   onClose: () => void;
   onCreated?: (board: BoardSummary) => void;
 }) {
-  const { user } = useAuth();
+  const router = useRouter();
   const [title, setTitle] = useState('');
   const [background, setBackground] = useState<BoardBackground>('blue');
   const [pending, setPending] = useState(false);
@@ -42,15 +44,17 @@ function CreateBoardForm({
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!trimmed || !user || pending) return;
+    if (!trimmed || pending) return;
     setPending(true);
     setError(null);
     try {
-      const board = await boardsStore.create({ title: trimmed, background }, { id: user.id, name: user.name });
+      const board = await boardsStore.create({ title: trimmed, background });
       onCreated?.(board);
       onClose();
-    } catch {
-      setError('Không thể tạo bảng, vui lòng thử lại');
+      // Giống Trello: tạo xong mở luôn bảng mới
+      router.push(`/b/${board.id}`);
+    } catch (err) {
+      setError(errorMessage(err));
       setPending(false);
     }
   }
@@ -61,31 +65,9 @@ function CreateBoardForm({
 
       <BoardPreview background={background} />
 
-      <fieldset className="mt-3">
-        <legend className="mb-1.5 text-xs font-semibold">Phông nền</legend>
-        <div className="grid grid-cols-6 gap-1.5">
-          {BACKGROUND_KEYS.map((key) => {
-            const selected = key === background;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setBackground(key)}
-                aria-label={BOARD_BACKGROUNDS[key].label}
-                aria-pressed={selected}
-                title={BOARD_BACKGROUNDS[key].label}
-                className={cn(
-                  'flex h-8 items-center justify-center rounded bg-linear-to-br text-white transition hover:opacity-90',
-                  BOARD_BACKGROUNDS[key].className,
-                  selected && 'ring-2 ring-brand ring-offset-1',
-                )}
-              >
-                {selected && <Check size={14} strokeWidth={3} />}
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
+      <div className="mt-3">
+        <BackgroundPicker value={background} onChange={setBackground} />
+      </div>
 
       <label htmlFor="board-title" className="mt-3 mb-1.5 block text-xs font-semibold">
         Tiêu đề bảng <span className="text-danger">*</span>

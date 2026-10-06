@@ -1,0 +1,107 @@
+import { ApiProperty, PartialType } from '@nestjs/swagger';
+import { BoardRole } from '@prisma/client';
+import { Transform } from 'class-transformer';
+import { IsBoolean, IsIn, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { trimString } from '../../common/transforms';
+import { BOARD_BACKGROUNDS, MAX_BOARD_TITLE, type BoardBackground } from '../boards.constants';
+import { ListDto } from './list.dto';
+
+// ===== Request =====
+
+export class CreateBoardDto {
+  @ApiProperty({ minLength: 1, maxLength: MAX_BOARD_TITLE, example: 'Dự án Website', description: 'Tự động trim' })
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty({ message: 'Vui lòng nhập tiêu đề bảng' })
+  @MaxLength(MAX_BOARD_TITLE, { message: `Tiêu đề bảng tối đa ${MAX_BOARD_TITLE} ký tự` })
+  title: string;
+
+  @ApiProperty({ enum: BOARD_BACKGROUNDS, example: 'blue', description: 'Key phông nền dựng sẵn' })
+  @IsIn(BOARD_BACKGROUNDS, { message: `Phông nền phải là một trong: ${BOARD_BACKGROUNDS.join(', ')}` })
+  background: BoardBackground;
+}
+
+/** Mọi trường đều tuỳ chọn — chỉ gửi trường cần đổi. */
+export class UpdateBoardDto extends PartialType(CreateBoardDto) {}
+
+export class StarBoardDto {
+  @ApiProperty({ example: true })
+  @IsBoolean({ message: 'starred phải là true hoặc false' })
+  starred: boolean;
+}
+
+// ===== Response =====
+
+export class BoardMemberDto {
+  @ApiProperty({ example: 'cmg9x2k7a0000vq8h3b1c2d4e' })
+  id: string;
+
+  @ApiProperty({ example: 'Nguyễn Văn An' })
+  name: string;
+
+  @ApiProperty({ type: String, nullable: true, format: 'uri', example: null })
+  avatarUrl: string | null;
+
+  @ApiProperty({ enum: BoardRole, example: BoardRole.ADMIN })
+  role: BoardRole;
+}
+
+export class BoardSummaryDto {
+  @ApiProperty({ example: 'cmgboard0000vq8h3b1c2d4e' })
+  id: string;
+
+  @ApiProperty({ example: 'Dự án Website' })
+  title: string;
+
+  @ApiProperty({ enum: BOARD_BACKGROUNDS, example: 'blue' })
+  background: string;
+
+  @ApiProperty({ example: false, description: 'User hiện tại đã đánh dấu sao chưa' })
+  starred: boolean;
+
+  @ApiProperty({ enum: BoardRole, example: BoardRole.ADMIN, description: 'Vai trò của user hiện tại' })
+  role: BoardRole;
+
+  @ApiProperty({ type: String, format: 'date-time', example: '2026-01-15T08:30:00.000Z' })
+  createdAt: Date;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    example: '2026-01-16T09:00:00.000Z',
+    description: 'Lần cuối user hiện tại mở bảng (cập nhật khi gọi GET /boards/{id})',
+  })
+  lastViewedAt: Date | null;
+
+  @ApiProperty({ type: [BoardMemberDto] })
+  members: BoardMemberDto[];
+}
+
+export class BoardDetailDto extends BoardSummaryDto {
+  @ApiProperty({ type: String, format: 'date-time', example: '2026-01-15T08:30:00.000Z' })
+  updatedAt: Date;
+
+  @ApiProperty({ type: [ListDto], description: 'Các danh sách kèm thẻ, đã sắp theo position' })
+  lists: ListDto[];
+}
+
+export class BoardsResponseDto {
+  @ApiProperty({ type: [BoardSummaryDto] })
+  boards: BoardSummaryDto[];
+}
+
+export class BoardSummaryResponseDto {
+  @ApiProperty({ type: BoardSummaryDto })
+  board: BoardSummaryDto;
+}
+
+export class BoardDetailResponseDto {
+  @ApiProperty({ type: BoardDetailDto })
+  board: BoardDetailDto;
+}
+
+export class StarResponseDto {
+  @ApiProperty({ example: true })
+  starred: boolean;
+}

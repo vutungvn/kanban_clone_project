@@ -14,3 +14,8 @@ export const BOARD_BACKGROUNDS = {
 export type BoardBackground = keyof typeof BOARD_BACKGROUNDS;
 
 export const BACKGROUND_KEYS = Object.keys(BOARD_BACKGROUNDS) as BoardBackground[];
+
+/** Class màu của phông nền; key lạ (dữ liệu cũ, server thêm màu mới) → dùng màu mặc định. */
+export function backgroundClass(key: string) {
+  return (BOARD_BACKGROUNDS[key as BoardBackground] ?? BOARD_BACKGROUNDS.blue).className;
+}

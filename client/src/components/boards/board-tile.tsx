@@ -2,7 +2,7 @@ import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import type { MouseEvent } from 'react';
 import { Avatar } from '@/components/avatar';
-import { BOARD_BACKGROUNDS } from '@/lib/board-backgrounds';
+import { backgroundClass } from '@/lib/board-backgrounds';
 import type { BoardSummary } from '@/lib/boards-store';
 import { cn } from '@/lib/cn';
 import { StarButton } from './star-button';
@@ -16,7 +16,7 @@ export function BoardTile({ board }: { board: BoardSummary }) {
     <div
       className={cn(
         'group relative h-24 overflow-hidden rounded-lg bg-linear-to-r p-3 text-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
-        BOARD_BACKGROUNDS[board.background].className,
+        backgroundClass(board.background),
       )}
     >
       <div aria-hidden className="absolute inset-0 bg-black/10 transition-colors group-hover:bg-transparent" />
@@ -30,7 +30,7 @@ export function BoardTile({ board }: { board: BoardSummary }) {
       </Link>
 
       <div className="pointer-events-none relative flex h-full flex-col justify-between">
-        <h3 className="line-clamp-2 pr-6 text-sm font-semibold tracking-tight drop-shadow-sm">{board.title}</h3>
+        <h3 className="line-clamp-2 pr-6 text-base leading-snug font-semibold tracking-tight drop-shadow-sm">{board.title}</h3>
         {board.members.length > 0 && (
           <div className="flex -space-x-1.5">
             {board.members.slice(0, MAX_AVATARS).map((m) => (

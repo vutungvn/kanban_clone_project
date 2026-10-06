@@ -1,55 +1,36 @@
-import { useSyncExternalStore } from 'react';
-import type { BoardBackground } from './board-backgrounds';
+import { useEffect, useSyncExternalStore } from 'react';
+import { errorMessage } from './api';
+import { boardsApi, type BoardInput, type BoardSummary } from './boards-api';
+
+export type { BoardSummary } from './boards-api';
 
 /*
- * ⚠️ DỮ LIỆU GIẢ LẬP — server chưa có API boards.
- * Các hàm giữ dạng async và trả về đúng kiểu dữ liệu dự kiến của API, để khi có
- * backend chỉ cần thay phần thân bằng api('/boards', ...). Dữ liệu chỉ sống trong
- * bộ nhớ: tải lại trang là mất các bảng vừa tạo.
+ * Danh sách bảng của user, dùng chung cho trang /boards, ô tìm kiếm trên header...
+ * Tải 1 lần rồi giữ trong bộ nhớ; các thao tác (tạo, gắn sao, đổi tên, xoá) cập nhật
+ * vào đây để mọi nơi hiển thị đồng bộ mà không phải tải lại.
  */
 
-export interface BoardMemberSummary {
-  id: string;
-  name: string;
+interface BoardsState {
+  status: 'idle' | 'loading' | 'ready' | 'error';
+  boards: BoardSummary[];
+  error: string | null;
 }
 
-export interface BoardSummary {
-  id: string;
-  title: string;
-  background: BoardBackground;
-  /** Đánh dấu sao — theo từng user */
-  starred: boolean;
-  createdAt: string;
-  /** Lần cuối user hiện tại mở board — dùng cho sắp xếp "gần đây" */
-  lastViewedAt: string | null;
-  members: BoardMemberSummary[];
-}
+const INITIAL: BoardsState = { status: 'idle', boards: [], error: null };
 
-export interface CreateBoardInput {
-  title: string;
-  background: BoardBackground;
-}
-
-const minutesAgo = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
-const delay = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const HA = { id: 'mock-ha', name: 'Ngọc Hà' };
-const LONG = { id: 'mock-long', name: 'Tuấn Long' };
-const MAI = { id: 'mock-mai', name: 'Thanh Mai' };
-
-let boards: BoardSummary[] = [
-  { id: 'mock-website', title: 'Dự án Website', background: 'blue', starred: true, createdAt: minutesAgo(9000), lastViewedAt: minutesAgo(5), members: [HA, LONG] },
-  { id: 'mock-marketing', title: 'Marketing Q4', background: 'sunset', starred: false, createdAt: minutesAgo(7000), lastViewedAt: minutesAgo(120), members: [MAI] },
-  { id: 'mock-mobile', title: 'App Mobile', background: 'purple', starred: true, createdAt: minutesAgo(6000), lastViewedAt: minutesAgo(60), members: [LONG] },
-  { id: 'mock-hiring', title: 'Tuyển dụng', background: 'green', starred: false, createdAt: minutesAgo(5000), lastViewedAt: minutesAgo(1440), members: [HA, MAI, LONG] },
-  { id: 'mock-personal', title: 'Kế hoạch cá nhân', background: 'teal', starred: false, createdAt: minutesAgo(3000), lastViewedAt: null, members: [] },
-];
-
+let state: BoardsState = INITIAL;
+let loading: Promise<void> | null = null;
+/** Tăng mỗi lần reset → bỏ qua kết quả tải của phiên đăng nhập trước */
+let generation = 0;
 const listeners = new Set<() => void>();
 
-function setBoards(next: BoardSummary[]) {
-  boards = next;
+function setState(patch: Partial<BoardsState>) {
+  state = { ...state, ...patch };
   listeners.forEach((listener) => listener());
+}
+
+function setBoards(update: (boards: BoardSummary[]) => BoardSummary[]) {
+  setState({ boards: update(state.boards) });
 }
 
 export const boardsStore = {
@@ -60,31 +41,65 @@ export const boardsStore = {
     };
   },
 
-  getSnapshot: () => boards,
+  getSnapshot: () => state,
 
-  async create(input: CreateBoardInput, owner: BoardMemberSummary): Promise<BoardSummary> {
-    await delay();
-    const board: BoardSummary = {
-      id: crypto.randomUUID(),
-      ...input,
-      starred: false,
-      createdAt: new Date().toISOString(),
-      lastViewedAt: null,
-      members: [owner],
-    };
-    setBoards([board, ...boards]);
+  /** Tải danh sách nếu chưa có (force = tải lại). */
+  load(force = false): Promise<void> {
+    if (loading) return loading;
+    if (state.status === 'ready' && !force) return Promise.resolve();
+
+    const gen = generation;
+    if (state.status !== 'ready') setState({ status: 'loading', error: null });
+    loading = boardsApi
+      .list()
+      .then((boards) => {
+        if (gen === generation) setState({ status: 'ready', boards, error: null });
+      })
+      .catch((e) => {
+        if (gen === generation) setState({ status: 'error', error: errorMessage(e) });
+      })
+      .finally(() => {
+        loading = null;
+      });
+    return loading;
+  },
+
+  /** Xoá dữ liệu khi đăng nhập / đăng xuất — tránh lộ bảng của tài khoản trước. */
+  reset() {
+    generation++;
+    loading = null;
+    state = INITIAL;
+    listeners.forEach((listener) => listener());
+  },
+
+  async create(input: BoardInput) {
+    const board = await boardsApi.create(input);
+    boardsStore.upsert(board);
     return board;
   },
 
-  /** Cập nhật lạc quan: đổi UI ngay rồi mới "gọi API". */
+  /** Đổi giao diện ngay, gọi API sau; lỗi thì trả lại như cũ và ném lỗi ra ngoài. */
   async setStarred(id: string, starred: boolean) {
-    setBoards(boards.map((b) => (b.id === id ? { ...b, starred } : b)));
-    await delay();
+    setBoards((boards) => boards.map((b) => (b.id === id ? { ...b, starred } : b)));
+    try {
+      await boardsApi.setStarred(id, starred);
+    } catch (e) {
+      setBoards((boards) => boards.map((b) => (b.id === id ? { ...b, starred: !starred } : b)));
+      throw e;
+    }
   },
 
-  markViewed(id: string) {
-    if (!boards.some((b) => b.id === id)) return;
-    setBoards(boards.map((b) => (b.id === id ? { ...b, lastViewedAt: new Date().toISOString() } : b)));
+  /** Thêm mới hoặc cập nhật 1 bảng (vd sau khi đổi tên, hoặc vừa mở trang chi tiết). */
+  upsert(board: BoardSummary) {
+    setBoards((boards) =>
+      boards.some((b) => b.id === board.id)
+        ? boards.map((b) => (b.id === board.id ? { ...b, ...board } : b))
+        : [board, ...boards],
+    );
+  },
+
+  remove(id: string) {
+    setBoards((boards) => boards.filter((b) => b.id !== id));
   },
 };
 
@@ -93,6 +108,15 @@ export function compareRecent(a: BoardSummary, b: BoardSummary) {
   return Date.parse(b.lastViewedAt ?? b.createdAt) - Date.parse(a.lastViewedAt ?? a.createdAt);
 }
 
+/** Trạng thái đầy đủ (status, error) — tự tải khi component mount. */
+export function useBoardsState() {
+  const snapshot = useSyncExternalStore(boardsStore.subscribe, boardsStore.getSnapshot, boardsStore.getSnapshot);
+  useEffect(() => {
+    void boardsStore.load();
+  }, []);
+  return snapshot;
+}
+
 export function useBoards() {
-  return useSyncExternalStore(boardsStore.subscribe, boardsStore.getSnapshot, boardsStore.getSnapshot);
+  return useBoardsState().boards;
 }

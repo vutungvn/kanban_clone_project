@@ -87,3 +87,24 @@ Cơ chế:
 - Client tự gọi `/auth/refresh` khi gặp 401 rồi thử lại request.
 - Rate limit: register/login 5 lần/phút/IP.
 - Route cần bảo vệ trên server: dùng `@UseGuards(JwtAuthGuard)` + `@CurrentUser()`.
+
+## Bảng, danh sách, thẻ (Phase 2)
+
+| Method | Endpoint                       | Mô tả                                             | Quyền tối thiểu |
+| ------ | ------------------------------ | ------------------------------------------------- | --------------- |
+| GET    | `/api/boards`                  | Bảng của tôi (kèm sao, lần xem gần nhất)          | —               |
+| POST   | `/api/boards`                  | Tạo bảng `{ title, background }`                  | —               |
+| GET    | `/api/boards/:id`              | Chi tiết bảng kèm danh sách + thẻ                 | VIEWER          |
+| PATCH  | `/api/boards/:id`              | Đổi tên / phông nền                               | ADMIN           |
+| DELETE | `/api/boards/:id`              | Xoá bảng (xoá theo danh sách, thẻ)                | ADMIN           |
+| PUT    | `/api/boards/:id/star`         | Đánh dấu sao `{ starred }`                        | VIEWER          |
+| POST   | `/api/boards/:boardId/lists`   | Thêm danh sách vào cuối bảng                      | MEMBER          |
+| PATCH  | `/api/lists/:id`               | Đổi tên danh sách                                 | MEMBER          |
+| DELETE | `/api/lists/:id`               | Xoá danh sách và thẻ bên trong                    | MEMBER          |
+| POST   | `/api/lists/:listId/cards`     | Thêm thẻ vào cuối danh sách                       | MEMBER          |
+| PATCH  | `/api/cards/:id`               | Sửa tiêu đề / mô tả thẻ                           | MEMBER          |
+| DELETE | `/api/cards/:id`               | Xoá thẻ                                           | MEMBER          |
+
+- Người tạo bảng là `ADMIN`. Không phải thành viên → **404**; thiếu quyền → **403**.
+- Thứ tự danh sách / thẻ lưu bằng `position` (số thực, cách nhau 1024) — chuẩn bị cho kéo thả: chèn giữa 2 phần tử chỉ cần cập nhật 1 dòng.
+- Client: `lib/boards-store.ts` giữ danh sách bảng dùng chung; `lib/use-board.ts` quản lý 1 bảng — sửa/xoá cập nhật giao diện ngay rồi gọi API, lỗi thì hoàn tác và hiện toast.
