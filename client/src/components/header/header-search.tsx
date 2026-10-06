@@ -3,7 +3,7 @@
 import { Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { BOARD_BACKGROUNDS } from '@/lib/board-backgrounds';
+import { backgroundClass } from '@/lib/board-backgrounds';
 import { compareRecent, useBoards } from '@/lib/boards-store';
 import { cn } from '@/lib/cn';
 import { matchesQuery } from '@/lib/search';
@@ -138,7 +138,7 @@ export function HeaderSearch() {
                 >
                   <span
                     aria-hidden
-                    className={cn('h-6 w-8 shrink-0 rounded bg-linear-to-br', BOARD_BACKGROUNDS[board.background].className)}
+                    className={cn('h-6 w-8 shrink-0 rounded bg-linear-to-br', backgroundClass(board.background))}
                   />
                   <span className="truncate">{board.title}</span>
                 </li>
