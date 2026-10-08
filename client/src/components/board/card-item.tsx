@@ -8,12 +8,14 @@ import type { Card } from '@/lib/boards-api';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
 import { useOutsideClick } from '@/lib/use-outside-click';
+import { useOpenCard } from './card-detail-modal';
 import type { DragData } from './dnd';
 
-const CARD_CLASS = 'group relative rounded-lg bg-white p-3 text-sm text-ink shadow-sm outline-none';
+const CARD_CLASS = 'relative rounded-lg bg-white p-3 text-sm text-ink shadow-sm outline-none';
 
 export function CardItem({ card, canEdit, actions }: { card: Card; canEdit: boolean; actions: BoardActions }) {
   const [editing, setEditing] = useState(false);
+  const openCard = useOpenCard();
   const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: card.id,
     data: { type: 'card', listId: card.listId, title: card.title } satisfies DragData,
@@ -34,39 +36,43 @@ export function CardItem({ card, canEdit, actions }: { card: Card; canEdit: bool
       ref={setNodeRef}
       style={style}
       // Đang kéo: chỗ cũ thành ô trống màu xám (bản kéo theo chuột nằm ở DragOverlay)
-      className={cn(isDragging && 'rounded-lg bg-black/15 *:invisible')}
+      className={cn('group relative', isDragging && 'rounded-lg bg-black/15 *:invisible')}
     >
       <article
         ref={setActivatorNodeRef}
         {...attributes}
         {...listeners}
-        role={canEdit ? 'button' : undefined}
-        tabIndex={canEdit ? 0 : undefined}
-        aria-label={canEdit ? `Thẻ "${card.title}". Enter để sửa, Space để kéo` : undefined}
-        onClick={canEdit ? () => setEditing(true) : undefined}
+        role="button"
+        tabIndex={0}
+        aria-label={`Thẻ "${card.title}". Enter để mở${canEdit ? ', Space để kéo' : ''}`}
+        onClick={() => openCard(card.id)}
         onKeyDown={(e) => {
           listeners?.onKeyDown?.(e); // Space: bắt đầu kéo bằng bàn phím
-          if (canEdit && e.key === 'Enter' && !isDragging && !e.defaultPrevented) {
+          if (e.key === 'Enter' && !isDragging && !e.defaultPrevented) {
             e.preventDefault();
-            setEditing(true);
+            openCard(card.id);
           }
         }}
         className={cn(
           CARD_CLASS,
-          canEdit &&
-            'cursor-pointer transition-shadow hover:shadow-md hover:ring-2 hover:ring-brand focus-visible:ring-2 focus-visible:ring-brand',
+          'cursor-pointer transition-shadow hover:shadow-md hover:ring-2 hover:ring-brand focus-visible:ring-2 focus-visible:ring-brand',
         )}
       >
         <CardContent card={card} />
-        {canEdit && (
-          <span
-            aria-hidden
-            className="absolute top-2 right-2 hidden h-6 w-6 items-center justify-center rounded bg-surface-high/80 text-ink-subtle group-hover:flex"
-          >
-            <Pencil size={14} />
-          </span>
-        )}
       </article>
+      {canEdit && (
+        // Sửa nhanh tiêu đề ngay trên thẻ; bàn phím dùng modal (Enter) nên không cần nằm trong thứ tự Tab
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setEditing(true)}
+          aria-label={`Sửa nhanh thẻ "${card.title}"`}
+          title="Sửa nhanh"
+          className="absolute top-1.5 right-1.5 hidden h-7 w-7 items-center justify-center rounded-full bg-surface-low text-ink-subtle transition-colors group-hover:flex hover:bg-surface-high hover:text-ink"
+        >
+          <Pencil size={14} />
+        </button>
+      )}
     </li>
   );
 }

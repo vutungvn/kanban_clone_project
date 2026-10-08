@@ -119,6 +119,27 @@ export function useBoard(boardId: string) {
         }
       },
 
+      /** Chuyển thẻ bằng menu "Di chuyển" (không kéo thả): `index` không tính chính thẻ đó. */
+      moveCard: async (cardId: string, listId: string, index: number) => {
+        const current = boardRef.current;
+        const card = current?.lists.flatMap((l) => l.cards).find((c) => c.id === cardId);
+        if (!current || !card) return;
+        const rollback = current.lists;
+        const without = rollback.map((l) => ({ ...l, cards: l.cards.filter((c) => c.id !== cardId) }));
+        const target = without.find((l) => l.id === listId);
+        if (!target) return;
+        const at = Math.min(index, target.cards.length);
+        if (card.listId === listId && rollback.find((l) => l.id === listId)?.cards[at]?.id === cardId) return;
+        const cards = [...target.cards];
+        cards.splice(at, 0, { ...card, listId });
+        commit({ ...current, lists: without.map((l) => (l.id === listId ? { ...l, cards } : l)) });
+        try {
+          await cardsApi.move(cardId, listId, at);
+        } catch (e) {
+          rollbackMove(rollback, e);
+        }
+      },
+
       /** Cập nhật cục bộ trạng thái sao (nút sao tự gọi API qua boardsStore). */
       setStarredLocal: (starred: boolean) => {
         if (boardRef.current) commit({ ...boardRef.current, starred });

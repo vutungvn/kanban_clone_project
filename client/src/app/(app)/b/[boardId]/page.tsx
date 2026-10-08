@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { BoardCanvas } from '@/components/board/board-canvas';
 import { BoardHeader } from '@/components/board/board-header';
+import { CardDetailModal, useCardParam } from '@/components/board/card-detail-modal';
 import { backgroundClass } from '@/lib/board-backgrounds';
 import { cn } from '@/lib/cn';
 import { useBoard } from '@/lib/use-board';
@@ -13,6 +14,7 @@ import { useBoard } from '@/lib/use-board';
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const { board, status, error, actions } = useBoard(boardId);
+  const cardParam = useCardParam();
 
   useEffect(() => {
     if (board) document.title = `${board.title} | Kanban`;
@@ -44,6 +46,9 @@ export default function BoardPage() {
     <div className={cn('flex h-[calc(100vh-3rem)] flex-col bg-linear-to-br', backgroundClass(board.background))}>
       <BoardHeader board={board} actions={actions} />
       <BoardCanvas board={board} actions={actions} />
+      {cardParam.cardId && (
+        <CardDetailModal key={cardParam.cardId} board={board} cardId={cardParam.cardId} actions={actions} onClose={cardParam.close} />
+      )}
     </div>
   );
 }
