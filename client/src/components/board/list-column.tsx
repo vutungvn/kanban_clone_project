@@ -1,19 +1,32 @@
 'use client';
 
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { MoreHorizontal, Plus } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Popover, PopoverHeader, usePopoverAnchor } from '@/components/popover';
 import { ComingSoonBadge } from '@/components/ui';
 import type { List } from '@/lib/boards-api';
+import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
 import { CardItem } from './card-item';
 import { AddCardComposer } from './composers';
+import type { DragData } from './dnd';
 import { InlineTitle } from './inline-title';
+
+const COLUMN_CLASS = 'flex max-h-full w-68 shrink-0 flex-col rounded-xl p-2.5';
 
 export function ListColumn({ list, canEdit, actions }: { list: List; canEdit: boolean; actions: BoardActions }) {
   const [composerOpen, setComposerOpen] = useState(false);
   const cardsRef = useRef<HTMLOListElement>(null);
   const menu = usePopoverAnchor();
+  const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
+    id: list.id,
+    data: { type: 'list', title: list.title } satisfies DragData,
+    disabled: !canEdit,
+  });
+  // Bỏ role="button" mặc định: phần tiêu đề còn chứa nút khác, lồng button trong button là sai chuẩn
+  const { role: _role, ...handleAttributes } = attributes;
 
   // Thẻ mới nằm cuối danh sách → cuộn xuống để thấy
   const scrollToBottom = () =>
@@ -21,10 +34,20 @@ export function ListColumn({ list, canEdit, actions }: { list: List; canEdit: bo
 
   return (
     <section
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
       aria-label={`Danh sách ${list.title}`}
-      className="flex max-h-full w-68 shrink-0 flex-col rounded-xl bg-list p-2.5 shadow-md"
+      // Đang kéo: chỗ cũ thành khung trống (bản kéo theo chuột nằm ở DragOverlay)
+      className={cn(COLUMN_CLASS, isDragging ? 'bg-black/20 *:invisible' : 'bg-list shadow-md')}
     >
-      <div className="flex items-start justify-between gap-1">
+      {/* Tiêu đề là "tay cầm" để kéo cả danh sách */}
+      <div
+        ref={setActivatorNodeRef}
+        {...handleAttributes}
+        {...listeners}
+        aria-label={canEdit ? `Kéo để di chuyển danh sách "${list.title}"` : undefined}
+        className={cn('flex items-start justify-between gap-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-brand', canEdit && 'cursor-grab')}
+      >
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <InlineTitle
             value={list.title}
@@ -32,7 +55,7 @@ export function ListColumn({ list, canEdit, actions }: { list: List; canEdit: bo
             label="tên danh sách"
             maxLength={100}
             onSave={(title) => void actions.renameList(list.id, title)}
-            className="rounded px-2 py-1 text-sm font-semibold break-words text-ink hover:bg-black/5"
+            className="rounded px-2 py-1 text-sm font-semibold wrap-break-word text-ink hover:bg-black/5"
             inputClassName="h-8 w-full bg-white px-2 text-sm font-semibold text-ink ring-2 ring-brand"
           />
           <span className="shrink-0 rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-semibold text-ink-subtle">
@@ -53,11 +76,14 @@ export function ListColumn({ list, canEdit, actions }: { list: List; canEdit: bo
         )}
       </div>
 
-      <ol ref={cardsRef} className="mt-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-0.5">
-        {list.cards.map((card) => (
-          <CardItem key={card.id} card={card} canEdit={canEdit} actions={actions} />
-        ))}
-      </ol>
+      <SortableContext items={list.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+        {/* min-h-2: danh sách trống vẫn có chỗ để thả thẻ vào */}
+        <ol ref={cardsRef} className="mt-1 flex min-h-2 flex-1 flex-col gap-2 overflow-y-auto p-0.5">
+          {list.cards.map((card) => (
+            <CardItem key={card.id} card={card} canEdit={canEdit} actions={actions} />
+          ))}
+        </ol>
+      </SortableContext>
 
       {canEdit &&
         (composerOpen ? (
@@ -94,7 +120,26 @@ export function ListColumn({ list, canEdit, actions }: { list: List; canEdit: bo
   );
 }
 
-const MENU_ITEM = 'flex w-full items-center rounded px-2.5 py-1.5 text-left text-sm transition-colors';
+/** Bản sao danh sách bay theo con trỏ khi kéo. */
+export function ListPreview({ list }: { list: List }) {
+  return (
+    <section className={cn(COLUMN_CLASS, 'max-h-[70vh] rotate-2 bg-list cursor-grabbing overflow-hidden shadow-2xl')}>
+      <div className="flex items-center gap-2 px-2 py-1">
+        <h2 className="text-sm font-semibold wrap-break-word text-ink">{list.title}</h2>
+        <span className="rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-semibold text-ink-subtle">{list.cards.length}</span>
+      </div>
+      <ol className="mt-1 flex flex-col gap-2 p-0.5">
+        {list.cards.map((card) => (
+          <li key={card.id} className="rounded-lg bg-white p-3 text-sm wrap-break-word text-ink shadow-sm">
+            {card.title}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+const MENU_ITEM ='flex w-full items-center rounded px-2.5 py-1.5 text-left text-sm transition-colors';
 
 function ListMenu({
   list,

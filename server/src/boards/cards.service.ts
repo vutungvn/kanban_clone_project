@@ -3,8 +3,9 @@ import { BoardRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BoardAccessService } from './board-access.service';
 import { POSITION_GAP } from './boards.constants';
-import type { CreateCardDto, UpdateCardDto } from './dto/card.dto';
+import type { CreateCardDto, MoveCardDto, UpdateCardDto } from './dto/card.dto';
 import { LIST_NOT_FOUND } from './lists.service';
+import { placeAt } from './position';
 
 export const CARD_NOT_FOUND = 'Không tìm thấy thẻ';
 
@@ -35,6 +36,29 @@ export class CardsService {
     });
   }
 
+  /** Kéo thả: chuyển thẻ tới vị trí `index` của danh sách `listId` (cùng bảng). */
+  async move(cardId: string, userId: string, dto: MoveCardDto) {
+    const boardId = await this.requireEditable(cardId, userId);
+    const target = await this.prisma.list.findUnique({ where: { id: dto.listId }, select: { boardId: true } });
+    // Chỉ cho chuyển trong cùng bảng; list của bảng khác coi như không tồn tại
+    if (!target || target.boardId !== boardId) throw new NotFoundException(LIST_NOT_FOUND);
+
+    return this.prisma.$transaction(async (tx) => {
+      const siblings = await tx.card.findMany({
+        where: { listId: dto.listId, NOT: { id: cardId } },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        select: { id: true, position: true },
+      });
+      const { position, rebalanced } = placeAt(siblings, dto.index, cardId);
+      if (rebalanced) {
+        for (const item of rebalanced) {
+          await tx.card.update({ where: { id: item.id }, data: { position: item.position } });
+        }
+      }
+      return tx.card.update({ where: { id: cardId }, data: { listId: dto.listId, position } });
+    });
+  }
+
   async remove(cardId: string, userId: string) {
     await this.requireEditable(cardId, userId);
     await this.prisma.card.delete({ where: { id: cardId } });
@@ -47,5 +71,6 @@ export class CardsService {
     });
     if (!card) throw new NotFoundException(CARD_NOT_FOUND);
     await this.access.require(card.list.boardId, userId, BoardRole.MEMBER, CARD_NOT_FOUND);
+    return card.list.boardId;
   }
 }

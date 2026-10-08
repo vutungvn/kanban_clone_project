@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, MaxLength, Min } from 'class-validator';
 import { trimString } from '../../common/transforms';
 import { MAX_LIST_TITLE } from '../boards.constants';
 import { CardDto } from './card.dto';
@@ -14,8 +14,19 @@ export class CreateListDto {
   title: string;
 }
 
-/** Hiện chỉ đổi được tên; sẽ thêm trường khi có kéo thả / lưu trữ. */
+/** Hiện chỉ đổi được tên; sẽ thêm trường khi có lưu trữ. */
 export class UpdateListDto extends CreateListDto {}
+
+export class MoveListDto {
+  @ApiProperty({
+    minimum: 0,
+    example: 0,
+    description: 'Vị trí mới trong bảng, tính từ 0 (không tính chính danh sách đang kéo). Lớn hơn số danh sách → đặt cuối.',
+  })
+  @IsInt({ message: 'index phải là số nguyên' })
+  @Min(0, { message: 'index không được âm' })
+  index: number;
+}
 
 export class ListDto {
   @ApiProperty({ example: 'cmglist00000vq8h3b1c2d4e' })

@@ -1,12 +1,11 @@
 'use client';
 
-import { LayoutPanelLeft, LoaderCircle } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect } from 'react';
+import { BoardCanvas } from '@/components/board/board-canvas';
 import { BoardHeader } from '@/components/board/board-header';
-import { AddListComposer } from '@/components/board/composers';
-import { ListColumn } from '@/components/board/list-column';
 import { backgroundClass } from '@/lib/board-backgrounds';
 import { cn } from '@/lib/cn';
 import { useBoard } from '@/lib/use-board';
@@ -41,32 +40,10 @@ export default function BoardPage() {
     );
   }
 
-  const canEdit = board.role !== 'VIEWER';
-  const empty = board.lists.length === 0;
-
   return (
     <div className={cn('flex h-[calc(100vh-3rem)] flex-col bg-linear-to-br', backgroundClass(board.background))}>
       <BoardHeader board={board} actions={actions} />
-
-      {/* Canvas: cuộn ngang; mỗi cột tự cuộn dọc */}
-      <div className="flex min-h-0 flex-1 items-start gap-3 overflow-x-auto px-4 pt-3 pb-4">
-        {board.lists.map((list) => (
-          <ListColumn key={list.id} list={list} canEdit={canEdit} actions={actions} />
-        ))}
-
-        {canEdit && <AddListComposer onAdd={actions.addList} hasLists={!empty} defaultOpen={empty} />}
-
-        {empty &&
-          (canEdit ? (
-            <div className="flex w-68 shrink-0 flex-col items-center gap-1.5 rounded-xl border border-dashed border-white/40 bg-white/10 px-4 py-6 text-center text-white/80">
-              <LayoutPanelLeft size={22} />
-              <p className="text-[11px] font-semibold tracking-wider uppercase">Bảng còn trống</p>
-              <p className="text-xs">Tạo danh sách đầu tiên như &quot;Cần làm&quot;, &quot;Đang làm&quot; hoặc &quot;Hoàn thành&quot;.</p>
-            </div>
-          ) : (
-            <p className="rounded-lg bg-black/20 px-4 py-3 text-sm text-white">Bảng chưa có danh sách nào.</p>
-          ))}
-      </div>
+      <BoardCanvas board={board} actions={actions} />
     </div>
   );
 }

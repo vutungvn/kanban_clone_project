@@ -42,6 +42,8 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
   }
 
   if (!res.ok) {
+    // Rate limit: server trả "ThrottlerException: Too Many Requests" — đổi sang câu dễ hiểu
+    if (res.status === 429) throw new ApiError(429, 'Bạn thao tác quá nhanh, vui lòng thử lại sau 1 phút');
     const body = await res.json().catch(() => null);
     const message = Array.isArray(body?.message) ? body.message[0] : body?.message;
     throw new ApiError(res.status, message ?? 'Đã có lỗi xảy ra, vui lòng thử lại');

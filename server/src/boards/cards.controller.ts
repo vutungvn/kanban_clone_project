@@ -12,7 +12,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiAuth, ApiForbidden, ApiNotFound, ApiValidationError } from '../common/swagger/api-responses';
 import { CARD_NOT_FOUND, CardsService } from './cards.service';
-import { CardResponseDto, CreateCardDto, UpdateCardDto } from './dto/card.dto';
+import { CardResponseDto, CreateCardDto, MoveCardDto, UpdateCardDto } from './dto/card.dto';
 import { LIST_NOT_FOUND } from './lists.service';
 
 const VIEWER_FORBIDDEN = 'Bạn chỉ có quyền xem bảng này';
@@ -44,6 +44,22 @@ export class CardsController {
   @Patch('cards/:id')
   async update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateCardDto) {
     return { card: await this.cards.update(id, user.id, dto) };
+  }
+
+  @ApiOperation({
+    summary: 'Di chuyển thẻ (kéo thả)',
+    description:
+      'Chuyển thẻ tới vị trí `index` của danh sách `listId` — cùng danh sách (đổi thứ tự) hoặc danh sách khác ' +
+      'trong cùng bảng. Server tự tính `position`.',
+  })
+  @ApiParam({ name: 'id', description: 'ID thẻ' })
+  @ApiOkResponse({ type: CardResponseDto })
+  @ApiValidationError(['index phải là số nguyên', 'Vui lòng chọn danh sách đích'])
+  @ApiForbidden(VIEWER_FORBIDDEN)
+  @ApiNotFound(CARD_NOT_FOUND, 'Thẻ không tồn tại, danh sách đích không thuộc cùng bảng, hoặc bạn không phải thành viên')
+  @Patch('cards/:id/move')
+  async move(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: MoveCardDto) {
+    return { card: await this.cards.move(id, user.id, dto) };
   }
 
   @ApiOperation({ summary: 'Xoá thẻ' })
