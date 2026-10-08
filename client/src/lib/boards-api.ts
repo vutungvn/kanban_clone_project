@@ -79,6 +79,9 @@ export const listsApi = {
   rename: (listId: string, title: string) =>
     api<{ list: List }>(`/lists/${id(listId)}`, send('PATCH', { title })).then((r) => r.list),
   remove: (listId: string) => api<void>(`/lists/${id(listId)}`, send('DELETE')),
+  /** index: vị trí mới trong bảng (không tính chính danh sách đó) — server tự tính position */
+  move: (listId: string, index: number) =>
+    api<{ list: List }>(`/lists/${id(listId)}/move`, send('PATCH', { index })).then((r) => r.list),
 };
 
 export const cardsApi = {
@@ -87,6 +90,9 @@ export const cardsApi = {
   update: (cardId: string, input: { title?: string; description?: string | null }) =>
     api<{ card: Card }>(`/cards/${id(cardId)}`, send('PATCH', input)).then((r) => r.card),
   remove: (cardId: string) => api<void>(`/cards/${id(cardId)}`, send('DELETE')),
+  /** Chuyển thẻ tới vị trí `index` của danh sách `listId` (cùng bảng) */
+  move: (cardId: string, listId: string, index: number) =>
+    api<{ card: Card }>(`/cards/${id(cardId)}/move`, send('PATCH', { listId, index })).then((r) => r.card),
 };
 
 /** Lấy phần "tóm tắt" của board chi tiết — để đồng bộ vào danh sách bảng. */

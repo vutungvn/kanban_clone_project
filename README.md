@@ -104,7 +104,10 @@ Cơ chế:
 | POST   | `/api/lists/:listId/cards`     | Thêm thẻ vào cuối danh sách                       | MEMBER          |
 | PATCH  | `/api/cards/:id`               | Sửa tiêu đề / mô tả thẻ                           | MEMBER          |
 | DELETE | `/api/cards/:id`               | Xoá thẻ                                           | MEMBER          |
+| PATCH  | `/api/lists/:id/move`          | Kéo thả danh sách `{ index }`                     | MEMBER          |
+| PATCH  | `/api/cards/:id/move`          | Kéo thả thẻ `{ listId, index }` (cùng bảng)       | MEMBER          |
 
 - Người tạo bảng là `ADMIN`. Không phải thành viên → **404**; thiếu quyền → **403**.
-- Thứ tự danh sách / thẻ lưu bằng `position` (số thực, cách nhau 1024) — chuẩn bị cho kéo thả: chèn giữa 2 phần tử chỉ cần cập nhật 1 dòng.
+- Thứ tự danh sách / thẻ lưu bằng `position` (số thực, cách nhau 1024). Kéo thả: client chỉ gửi `index` (vị trí mới, không tính chính phần tử đó); server đọc thứ tự hiện tại trong DB, đặt position = trung bình 2 phần tử kề bên (chỉ cập nhật 1 dòng). Khi khe quá hẹp (< 1e-6) thì đánh số lại cả danh sách.
+- Kéo thả trên client dùng `@dnd-kit` (`components/board/board-canvas.tsx`): chuột (kéo sau 5px — bấm thường vẫn là click), cảm ứng (giữ 200ms), bàn phím (Space nhấc / mũi tên / Space thả / Esc huỷ). Trong lúc kéo chỉ đổi giao diện; khi thả mới gọi API, lỗi thì hoàn tác + tải lại ngầm.
 - Client: `lib/boards-store.ts` giữ danh sách bảng dùng chung; `lib/use-board.ts` quản lý 1 bảng — sửa/xoá cập nhật giao diện ngay rồi gọi API, lỗi thì hoàn tác và hiện toast.

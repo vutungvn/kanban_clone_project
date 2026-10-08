@@ -1,47 +1,63 @@
 'use client';
 
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { AlignLeft, Pencil, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { Card } from '@/lib/boards-api';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
 import { useOutsideClick } from '@/lib/use-outside-click';
+import type { DragData } from './dnd';
+
+const CARD_CLASS = 'group relative rounded-lg bg-white p-3 text-sm text-ink shadow-sm outline-none';
 
 export function CardItem({ card, canEdit, actions }: { card: Card; canEdit: boolean; actions: BoardActions }) {
   const [editing, setEditing] = useState(false);
+  const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
+    id: card.id,
+    data: { type: 'card', listId: card.listId, title: card.title } satisfies DragData,
+    disabled: !canEdit || editing,
+  });
+  const style = { transform: CSS.Translate.toString(transform), transition };
 
   if (editing) {
     return (
-      <li>
+      <li ref={setNodeRef} style={style}>
         <CardQuickEdit card={card} actions={actions} onDone={() => setEditing(false)} />
       </li>
     );
   }
 
   return (
-    <li>
+    <li
+      ref={setNodeRef}
+      style={style}
+      // Đang kéo: chỗ cũ thành ô trống màu xám (bản kéo theo chuột nằm ở DragOverlay)
+      className={cn(isDragging && 'rounded-lg bg-black/15 *:invisible')}
+    >
       <article
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
         role={canEdit ? 'button' : undefined}
         tabIndex={canEdit ? 0 : undefined}
-        aria-label={canEdit ? `Sửa thẻ "${card.title}"` : undefined}
+        aria-label={canEdit ? `Thẻ "${card.title}". Enter để sửa, Space để kéo` : undefined}
         onClick={canEdit ? () => setEditing(true) : undefined}
         onKeyDown={(e) => {
-          if (canEdit && (e.key === 'Enter' || e.key === ' ')) {
+          listeners?.onKeyDown?.(e); // Space: bắt đầu kéo bằng bàn phím
+          if (canEdit && e.key === 'Enter' && !isDragging && !e.defaultPrevented) {
             e.preventDefault();
             setEditing(true);
           }
         }}
         className={cn(
-          'group relative rounded-lg bg-white p-3 text-sm text-ink shadow-sm outline-none',
-          canEdit && 'cursor-pointer transition-shadow hover:shadow-md hover:ring-2 hover:ring-brand focus-visible:ring-2 focus-visible:ring-brand',
+          CARD_CLASS,
+          canEdit &&
+            'cursor-pointer transition-shadow hover:shadow-md hover:ring-2 hover:ring-brand focus-visible:ring-2 focus-visible:ring-brand',
         )}
       >
-        <p className={cn('break-words whitespace-pre-wrap', canEdit && 'pr-6')}>{card.title}</p>
-        {card.description && (
-          <span className="mt-2 flex text-ink-subtle" title="Thẻ có mô tả">
-            <AlignLeft size={16} />
-          </span>
-        )}
+        <CardContent card={card} />
         {canEdit && (
           <span
             aria-hidden
@@ -52,6 +68,28 @@ export function CardItem({ card, canEdit, actions }: { card: Card; canEdit: bool
         )}
       </article>
     </li>
+  );
+}
+
+function CardContent({ card }: { card: Card }) {
+  return (
+    <>
+      <p className="pr-6 wrap-break-word whitespace-pre-wrap">{card.title}</p>
+      {card.description && (
+        <span className="mt-2 flex text-ink-subtle" title="Thẻ có mô tả">
+          <AlignLeft size={16} />
+        </span>
+      )}
+    </>
+  );
+}
+
+/** Bản sao thẻ bay theo con trỏ khi kéo — nghiêng nhẹ như Trello. */
+export function CardPreview({ card }: { card: Card }) {
+  return (
+    <article className={cn(CARD_CLASS, 'w-62 rotate-3 cursor-grabbing shadow-xl ring-2 ring-brand/40')}>
+      <CardContent card={card} />
+    </article>
   );
 }
 
@@ -118,7 +156,7 @@ function CardQuickEdit({ card, actions, onDone }: { card: Card; actions: BoardAc
           <button
             type="button"
             onClick={() => setConfirmDelete(true)}
-            className="flex h-8 items-center gap-1.5 rounded px-2 text-sm text-danger transition-colors hover:bg-danger-soft/50"
+            className="flex h-8 items-center gap-1.5 rounded px-2 text-sm text-danger transition-colors hover:bg-danger-soft/40"
           >
             <Trash2 size={16} />
             Xoá

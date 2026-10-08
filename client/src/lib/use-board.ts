@@ -79,9 +79,45 @@ export function useBoard(boardId: string) {
     [commit],
   );
 
+  /** Kéo thả thất bại: trả về thứ tự cũ ngay, rồi tải lại ngầm từ server để chắc chắn khớp DB. */
+  const rollbackMove = useCallback(
+    (rollback: List[], e: unknown) => {
+      if (boardRef.current) commit({ ...boardRef.current, lists: rollback });
+      toast.error(errorMessage(e));
+      boardsApi
+        .get(boardId)
+        .then(commit)
+        .catch(() => undefined);
+    },
+    [boardId, commit],
+  );
+
   const actions = useMemo(
     () => ({
       reload: () => setReloadKey((k) => k + 1),
+
+      /** Kéo thả: hiển thị thứ tự tạm trong lúc đang kéo (chưa gọi API). */
+      previewLists: (lists: List[]) => {
+        if (boardRef.current) commit({ ...boardRef.current, lists });
+      },
+
+      /** Thả danh sách — giao diện đã ở thứ tự mới; `rollback` là thứ tự trước khi kéo. */
+      persistListMove: async (listId: string, index: number, rollback: List[]) => {
+        try {
+          await listsApi.move(listId, index);
+        } catch (e) {
+          rollbackMove(rollback, e);
+        }
+      },
+
+      /** Thả thẻ — tương tự, có thể sang danh sách khác. */
+      persistCardMove: async (cardId: string, listId: string, index: number, rollback: List[]) => {
+        try {
+          await cardsApi.move(cardId, listId, index);
+        } catch (e) {
+          rollbackMove(rollback, e);
+        }
+      },
 
       /** Cập nhật cục bộ trạng thái sao (nút sao tự gọi API qua boardsStore). */
       setStarredLocal: (starred: boolean) => {
@@ -135,7 +171,7 @@ export function useBoard(boardId: string) {
           () => cardsApi.remove(cardId),
         ),
     }),
-    [boardId, commit, optimistic],
+    [boardId, commit, optimistic, rollbackMove],
   );
 
   return { board, status, error, actions };
