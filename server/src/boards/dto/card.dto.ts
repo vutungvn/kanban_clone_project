@@ -1,7 +1,7 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { blankToNull, trimString } from '../../common/transforms';
 import { MAX_CARD_DESCRIPTION, MAX_CARD_TITLE } from '../boards.constants';
 
@@ -37,6 +37,22 @@ export class UpdateCardDto {
   @IsString()
   @MaxLength(MAX_CARD_DESCRIPTION, { message: `Mô tả tối đa ${MAX_CARD_DESCRIPTION} ký tự` })
   description?: string | null;
+}
+
+export class MoveCardDto {
+  @ApiProperty({ example: 'cmglist00000vq8h3b1c2d4e', description: 'Danh sách đích (phải cùng bảng; có thể là danh sách hiện tại)' })
+  @IsString()
+  @IsNotEmpty({ message: 'Vui lòng chọn danh sách đích' })
+  listId: string;
+
+  @ApiProperty({
+    minimum: 0,
+    example: 0,
+    description: 'Vị trí mới trong danh sách đích, tính từ 0 (không tính chính thẻ đang kéo). Lớn hơn số thẻ → đặt cuối.',
+  })
+  @IsInt({ message: 'index phải là số nguyên' })
+  @Min(0, { message: 'index không được âm' })
+  index: number;
 }
 
 export class CardDto {

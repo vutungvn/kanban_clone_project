@@ -12,7 +12,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiAuth, ApiForbidden, ApiNotFound, ApiValidationError } from '../common/swagger/api-responses';
 import { BOARD_NOT_FOUND } from './board-access.service';
-import { CreateListDto, ListResponseDto, UpdateListDto } from './dto/list.dto';
+import { CreateListDto, ListResponseDto, MoveListDto, UpdateListDto } from './dto/list.dto';
 import { LIST_NOT_FOUND, ListsService } from './lists.service';
 
 const VIEWER_FORBIDDEN = 'Bạn chỉ có quyền xem bảng này';
@@ -44,6 +44,22 @@ export class ListsController {
   @Patch('lists/:id')
   async update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateListDto) {
     return { list: await this.lists.update(id, user.id, dto) };
+  }
+
+  @ApiOperation({
+    summary: 'Di chuyển danh sách (kéo thả)',
+    description:
+      'Chuyển danh sách tới vị trí `index` trong bảng. Server tự tính `position` từ thứ tự hiện tại trong DB; ' +
+      'khi các position quá sát nhau sẽ tự đánh số lại cả bảng.',
+  })
+  @ApiParam({ name: 'id', description: 'ID danh sách' })
+  @ApiOkResponse({ type: ListResponseDto })
+  @ApiValidationError(['index phải là số nguyên', 'index không được âm'])
+  @ApiForbidden(VIEWER_FORBIDDEN)
+  @ApiNotFound(LIST_NOT_FOUND)
+  @Patch('lists/:id/move')
+  async move(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: MoveListDto) {
+    return { list: await this.lists.move(id, user.id, dto) };
   }
 
   @ApiOperation({ summary: 'Xoá danh sách', description: 'Xoá vĩnh viễn danh sách và mọi thẻ bên trong.' })
