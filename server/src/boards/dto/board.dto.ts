@@ -39,6 +39,9 @@ export class BoardMemberDto {
   @ApiProperty({ example: 'Nguyễn Văn An' })
   name: string;
 
+  @ApiProperty({ format: 'email', example: 'an.nguyen@example.com', description: 'Chỉ thành viên cùng bảng mới thấy' })
+  email: string;
+
   @ApiProperty({ type: String, nullable: true, format: 'uri', example: null })
   avatarUrl: string | null;
 

@@ -28,15 +28,19 @@ Mọi lỗi trả về \`{ statusCode, message, error }\`. Lỗi validate (400) 
 
 ### Rate limit
 
-Mặc định 100 request/phút/IP; \`/auth/register\` và \`/auth/login\` giới hạn 5 request/phút/IP (vượt quá → 429).
+Mặc định 100 request/phút/IP; \`/auth/register\` và \`/auth/login\` giới hạn 5 request/phút/IP, mời thành viên 20 request/phút/IP, \`/invites/{token}\` 30 request/phút/IP (vượt quá → 429).
 
 ### Phân quyền trong bảng
 
 | Vai trò | Được làm |
 | --- | --- |
-| \`ADMIN\` | Mọi quyền của MEMBER + đổi tên / phông nền, xoá bảng (người tạo bảng là ADMIN) |
+| \`ADMIN\` | Mọi quyền của MEMBER + đổi tên / phông nền, xoá bảng, mời / đổi vai trò / xoá thành viên (người tạo bảng là ADMIN) |
 | \`MEMBER\` | Thêm, sửa, xoá danh sách và thẻ |
 | \`VIEWER\` | Chỉ xem (vẫn đánh dấu sao được — sao là của riêng từng người) |
+
+Mọi vai trò đều tự rời bảng được. Bảng luôn phải còn ít nhất 1 ADMIN.
+
+Liên kết mời (\`/invite/{token}\`) chỉ cấp MEMBER hoặc VIEWER; ở chế độ cần duyệt, người mở link gửi yêu cầu để ADMIN duyệt.
 
 Không phải thành viên của bảng → **404** (không để lộ bảng có tồn tại hay không). Là thành viên nhưng thiếu quyền → **403**.
 `;
@@ -53,6 +57,8 @@ export function setupSwagger(app: INestApplication) {
     .addTag('Health', 'Kiểm tra trạng thái server')
     .addTag('Auth', 'Đăng ký, đăng nhập, quản lý phiên')
     .addTag('Boards', 'Bảng công việc')
+    .addTag('Members', 'Thành viên của bảng: mời, đổi vai trò, xoá / rời bảng')
+    .addTag('Invites', 'Liên kết mời vào bảng và yêu cầu tham gia')
     .addTag('Lists', 'Danh sách (cột) trong bảng')
     .addTag('Cards', 'Thẻ công việc trong danh sách')
     .build();

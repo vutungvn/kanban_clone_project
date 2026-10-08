@@ -4,9 +4,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BOARD_NOT_FOUND, BoardAccessService } from './board-access.service';
 import type { CreateBoardDto, UpdateBoardDto } from './dto/board.dto';
 
+export const memberUserSelect = { id: true, name: true, email: true, avatarUrl: true } as const satisfies Prisma.UserSelect;
+
+type MemberWithUser = BoardMember & { user: Prisma.UserGetPayload<{ select: typeof memberUserSelect }> };
+
+/** BoardMember + user → dạng trả về cho client (BoardMemberDto). */
+export const toMember = ({ user, role }: MemberWithUser) => ({ ...user, role });
+
 const withMembers = {
   members: {
-    include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+    include: { user: { select: memberUserSelect } },
     orderBy: { joinedAt: 'asc' },
   },
 } as const satisfies Prisma.BoardInclude;
@@ -33,12 +40,7 @@ function toSummary(board: BoardWithMembers, me: BoardMember) {
     role: me.role,
     createdAt: board.createdAt,
     lastViewedAt: me.lastViewedAt,
-    members: board.members.map((m) => ({
-      id: m.user.id,
-      name: m.user.name,
-      avatarUrl: m.user.avatarUrl,
-      role: m.role,
-    })),
+    members: board.members.map(toMember),
   };
 }
 

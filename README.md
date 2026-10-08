@@ -106,9 +106,24 @@ Cơ chế:
 | DELETE | `/api/cards/:id`               | Xoá thẻ                                           | MEMBER          |
 | PATCH  | `/api/lists/:id/move`          | Kéo thả danh sách `{ index }`                     | MEMBER          |
 | PATCH  | `/api/cards/:id/move`          | Kéo thả thẻ `{ listId, index }` (cùng bảng)       | MEMBER          |
+| POST   | `/api/boards/:boardId/members` | Mời người đã có tài khoản `{ email, role }`       | ADMIN           |
+| PATCH  | `/api/boards/:boardId/members/:userId` | Đổi vai trò `{ role }`                    | ADMIN           |
+| DELETE | `/api/boards/:boardId/members/:userId` | Xoá thành viên; `userId` là chính mình = rời bảng | ADMIN (rời bảng: mọi vai trò) |
+| GET / PUT / PATCH / DELETE | `/api/boards/:boardId/invite-link` | Xem / tạo lại (token mới) / đổi cài đặt (giữ token) / tắt liên kết mời | ADMIN |
+| GET    | `/api/boards/:boardId/join-requests` | Yêu cầu tham gia đang chờ                   | ADMIN           |
+| POST   | `/api/boards/:boardId/join-requests/:userId/approve` | Duyệt `{ role }`              | ADMIN           |
+| DELETE | `/api/boards/:boardId/join-requests/:userId` | Từ chối                               | ADMIN           |
+| GET    | `/api/invites/:token`          | Xem trước lời mời (tên, phông nền, số thành viên, trạng thái của tôi) | Đã đăng nhập |
+| POST   | `/api/invites/:token/join`     | Tham gia ngay, hoặc gửi yêu cầu nếu link cần duyệt | Đã đăng nhập |
+| DELETE | `/api/invites/:token/request`  | Huỷ yêu cầu của tôi                               | Đã đăng nhập    |
 
 - Người tạo bảng là `ADMIN`. Không phải thành viên → **404**; thiếu quyền → **403**.
+- Thành viên: chỉ mời được email đã đăng ký (trim + chữ thường; chưa có tài khoản → 404, đã ở trong bảng → 409). Bảng luôn còn ít nhất 1 `ADMIN` — hạ quyền / xoá / rời bảng của ADMIN cuối cùng → **400**. Mọi thay đổi thành viên của 1 bảng chạy lần lượt (khoá dòng `boards` bằng `SELECT ... FOR UPDATE` trong transaction, kiểm tra quyền người thao tác sau khi khoá) nên 2 ADMIN hạ quyền nhau cùng lúc vẫn còn 1 ADMIN. Mời thành viên giới hạn 20 request/phút/IP.
+- Liên kết mời: mỗi bảng 1 link (`boards.inviteToken`, 32 byte ngẫu nhiên), không hết hạn — muốn thu hồi thì tạo lại (token mới) hoặc tắt. Link chỉ cấp `MEMBER` / `VIEWER`. Đã là thành viên mà mở link → giữ nguyên vai trò. Chế độ "cần duyệt" (`inviteRequiresApproval`): mở link chỉ tạo yêu cầu trong `board_join_requests`, ADMIN duyệt (chọn vai trò, kể cả ADMIN) hoặc từ chối (người gửi gửi lại được). Mời thẳng bằng email / vào thẳng qua link → yêu cầu đang chờ tự xoá. Tắt hoặc tạo lại link không xoá yêu cầu đang chờ. `/invites/:token` giới hạn 30 request/phút/IP.
 - Thứ tự danh sách / thẻ lưu bằng `position` (số thực, cách nhau 1024). Kéo thả: client chỉ gửi `index` (vị trí mới, không tính chính phần tử đó); server đọc thứ tự hiện tại trong DB, đặt position = trung bình 2 phần tử kề bên (chỉ cập nhật 1 dòng). Khi khe quá hẹp (< 1e-6) thì đánh số lại cả danh sách.
 - Kéo thả trên client dùng `@dnd-kit` (`components/board/board-canvas.tsx`): chuột (kéo sau 5px — bấm thường vẫn là click), cảm ứng (giữ 200ms), bàn phím (Space nhấc / mũi tên / Space thả / Esc huỷ). Trong lúc kéo chỉ đổi giao diện; khi thả mới gọi API, lỗi thì hoàn tác + tải lại ngầm.
 - Modal chi tiết thẻ (`components/board/card-detail-modal.tsx`): bấm thẻ (hoặc Enter) để mở; thẻ đang mở nằm trên URL `/b/:boardId?card=:cardId` nên gửi link được. Sửa tiêu đề, mô tả (Ctrl+Enter lưu), di chuyển sang danh sách/vị trí khác, xoá thẻ. Esc / bấm nền / nút X để đóng. Nút bút chì trên thẻ vẫn là sửa nhanh. Thành viên, nhãn, ngày, checklist, bình luận... hiện nhãn "Sắp có" (chưa có API).
+- Chia sẻ bảng (`components/board/share-board-modal.tsx`, mở từ nút "Chia sẻ" hoặc cụm avatar trên header): ADMIN mời theo email, đổi vai trò, xoá thành viên; mọi người xem danh sách và tự rời bảng. Tự hạ quyền / xoá / rời bảng đều có bước xác nhận. Liên kết chia sẻ và yêu cầu tham gia: "Sắp có".
+- Trang `/invite/:token`: xem trước bảng → "Tham gia bảng" / "Gửi yêu cầu tham gia" / đang chờ duyệt ("Kiểm tra lại", "Huỷ yêu cầu") / đã là thành viên. Chưa đăng nhập → `/login?next=...`, đi qua trang đăng ký vẫn giữ `next`; `next` chỉ nhận đường dẫn nội bộ (`lib/safe-path.ts`, chặn `//` và `/\`).
+- Quyền thay đổi khi đang mở bảng (bị hạ quyền, bị xoá khỏi bảng): API trả 403/404 → `useBoard` hoàn tác, hiện toast rồi tải lại bảng — giao diện chuyển sang chỉ xem hoặc màn "Không tìm thấy bảng".
 - Client: `lib/boards-store.ts` giữ danh sách bảng dùng chung; `lib/use-board.ts` quản lý 1 bảng — sửa/xoá cập nhật giao diện ngay rồi gọi API, lỗi thì hoàn tác và hiện toast.
