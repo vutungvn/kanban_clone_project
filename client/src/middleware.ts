@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isSafeNextPath } from './lib/safe-path';
 
 // Chỉ kiểm tra "có cookie phiên hay không" để điều hướng nhanh.
 // Việc xác thực thật sự do API server đảm nhiệm.
-const PROTECTED_PREFIXES = ['/boards', '/b/'];
+const PROTECTED_PREFIXES = ['/boards', '/b/', '/invite/'];
 const AUTH_PAGES = ['/login', '/register'];
 
 export function middleware(req: NextRequest) {
@@ -16,12 +17,14 @@ export function middleware(req: NextRequest) {
   }
 
   if (hasSession && AUTH_PAGES.includes(pathname)) {
-    return NextResponse.redirect(new URL('/boards', req.url));
+    // Đã đăng nhập mà vẫn mở /login?next=... (vd từ liên kết mời) → đi thẳng tới đích
+    const next = req.nextUrl.searchParams.get('next');
+    return NextResponse.redirect(new URL(isSafeNextPath(next) ? next : '/boards', req.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/boards/:path*', '/b/:path*', '/login', '/register'],
+  matcher: ['/boards/:path*', '/b/:path*', '/invite/:path*', '/login', '/register'],
 };

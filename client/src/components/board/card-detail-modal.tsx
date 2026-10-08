@@ -14,7 +14,6 @@ import {
   Tag,
   Trash2,
   UserRound,
-  X,
   type LucideIcon,
 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -24,12 +23,12 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type KeyboardEvent,
   type MouseEvent,
   type RefObject,
 } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { Avatar } from '@/components/avatar';
+import { Modal, ModalCloseButton } from '@/components/modal';
 import { Popover, PopoverHeader, usePopoverAnchor } from '@/components/popover';
 import { toast } from '@/components/toast';
 import { ComingSoonBadge } from '@/components/ui';
@@ -134,8 +133,6 @@ export function CardDetailModal({
   return <CardModal board={board} list={list} card={card} actions={actions} onClose={close} />;
 }
 
-const FOCUSABLE = 'button:not([disabled]), textarea:not([disabled]), select:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
-
 function CardModal({
   board,
   list,
@@ -150,146 +147,77 @@ function CardModal({
   onClose: () => void;
 }) {
   const canEdit = board.role !== 'VIEWER';
-  const dialogRef = useRef<HTMLDivElement>(null);
   const move = usePopoverAnchor();
   const remove = usePopoverAnchor();
-  // Đang mở popover thì Esc / bấm nền chỉ đóng popover, chưa đóng modal
-  const popoverOpen = useRef(false);
-  popoverOpen.current = !!move.anchor || !!remove.anchor;
-  const pressedBackdrop = useRef(false);
-
-  // Mở: đưa focus vào modal. Đóng: trả focus về chỗ cũ (thường là thẻ vừa bấm).
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus();
-    return () => {
-      if (previous?.isConnected) previous.focus();
-    };
-  }, []);
-
-  useEffect(() => {
-    const onKeyDown = (e: globalThis.KeyboardEvent) => {
-      // Ô nhập tự xử lý Esc (huỷ sửa) thì gọi preventDefault → modal giữ nguyên
-      if (e.key === 'Escape' && !e.defaultPrevented && !popoverOpen.current) onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
-
-  /** Giữ Tab quanh quẩn trong modal. */
-  function trapFocus(e: KeyboardEvent) {
-    const dialog = dialogRef.current;
-    if (e.key !== 'Tab' || !dialog || !dialog.contains(e.target as Node)) return;
-    const items = [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)];
-    if (items.length === 0) return;
-    const first = items[0];
-    const last = items[items.length - 1];
-    if (e.shiftKey && (e.target === first || e.target === dialog)) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && e.target === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }
 
   return (
-    // Phủ dưới header của app (h-12), cuộn dọc khi thẻ dài
-    <div
-      className="fixed inset-x-0 top-12 bottom-0 z-40 flex items-start justify-center overflow-y-auto bg-black/65 px-4 py-8 backdrop-blur-[4px] sm:py-12"
-      // Bấm xuống và thả ra đều ở nền mới đóng — kéo bôi đen chữ từ trong modal ra ngoài không làm đóng
-      onPointerDown={(e) => {
-        pressedBackdrop.current = e.target === e.currentTarget && !popoverOpen.current;
-      }}
-      onClick={(e) => {
-        if (pressedBackdrop.current && e.target === e.currentTarget) onClose();
-        pressedBackdrop.current = false;
-      }}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Thẻ ${card.title}`}
-        tabIndex={-1}
-        onKeyDown={trapFocus}
-        className="relative my-auto w-full max-w-192 rounded-xl bg-white text-ink shadow-[0_20px_48px_rgba(9,30,66,0.45)] outline-none"
-      >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Đóng"
-          title="Đóng (Esc)"
-          className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full text-ink-subtle transition-colors hover:bg-surface-mid hover:text-ink"
-        >
-          <X size={20} />
-        </button>
+    <Modal label={`Thẻ ${card.title}`} onClose={onClose} className="max-w-192">
+      <ModalCloseButton onClick={onClose} />
 
-        <header className="flex items-start gap-3 px-6 pt-6 pb-3">
-          <CreditCard size={24} className="mt-1.5 shrink-0 text-ink-subtle" aria-hidden />
-          <div className="min-w-0 flex-1 pr-8">
-            <CardTitle card={card} canEdit={canEdit} onSave={(title) => void actions.updateCard(card.id, { title })} />
-            <p className="mt-0.5 text-sm text-ink-subtle">
-              trong danh sách{' '}
-              {canEdit ? (
-                <button
-                  type="button"
-                  onClick={move.toggle}
-                  aria-haspopup="dialog"
-                  aria-expanded={!!move.anchor}
-                  title="Di chuyển thẻ"
-                  className="font-semibold text-ink underline underline-offset-2 transition-colors hover:text-brand"
-                >
-                  {list.title}
-                </button>
-              ) : (
-                <strong className="font-semibold text-ink">{list.title}</strong>
-              )}
-            </p>
-          </div>
-        </header>
-
-        <div className={cn('grid grid-cols-1 gap-6 px-6 pt-2 pb-8', canEdit && 'md:grid-cols-[1fr_200px]')}>
-          <div className="flex min-w-0 flex-col gap-6">
-            <Description card={card} canEdit={canEdit} onSave={(description) => void actions.updateCard(card.id, { description })} />
-            <Activity card={card} />
-          </div>
-
-          {canEdit && (
-            <aside className="flex flex-col gap-6">
-              <SidebarGroup title="Thêm vào thẻ">
-                {(
-                  [
-                    ['Thành viên', UserRound],
-                    ['Nhãn', Tag],
-                    ['Việc cần làm', SquareCheck],
-                    ['Ngày', Calendar],
-                    ['Đính kèm', Paperclip],
-                    ['Ảnh bìa', ImageIcon],
-                  ] as const
-                ).map(([label, icon]) => (
-                  <UpcomingButton key={label} label={label} icon={icon} />
-                ))}
-              </SidebarGroup>
-
-              <SidebarGroup title="Thao tác">
-                <SidebarButton icon={ArrowRight} label="Di chuyển" onClick={move.toggle} expanded={!!move.anchor} />
-                <UpcomingButton label="Sao chép" icon={Copy} />
-                <UpcomingButton label="Lưu trữ" icon={Archive} />
-                <button
-                  type="button"
-                  onClick={remove.toggle}
-                  aria-haspopup="dialog"
-                  aria-expanded={!!remove.anchor}
-                  className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-sm font-medium text-danger transition-colors hover:bg-danger-soft/40 aria-expanded:bg-danger-soft/40"
-                >
-                  <Trash2 size={18} />
-                  Xoá thẻ
-                </button>
-              </SidebarGroup>
-            </aside>
-          )}
+      <header className="flex items-start gap-3 px-6 pt-6 pb-3">
+        <CreditCard size={24} className="mt-1.5 shrink-0 text-ink-subtle" aria-hidden />
+        <div className="min-w-0 flex-1 pr-8">
+          <CardTitle card={card} canEdit={canEdit} onSave={(title) => void actions.updateCard(card.id, { title })} />
+          <p className="mt-0.5 text-sm text-ink-subtle">
+            trong danh sách{' '}
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={move.toggle}
+                aria-haspopup="dialog"
+                aria-expanded={!!move.anchor}
+                title="Di chuyển thẻ"
+                className="font-semibold text-ink underline underline-offset-2 transition-colors hover:text-brand"
+              >
+                {list.title}
+              </button>
+            ) : (
+              <strong className="font-semibold text-ink">{list.title}</strong>
+            )}
+          </p>
         </div>
+      </header>
+
+      <div className={cn('grid grid-cols-1 gap-6 px-6 pt-2 pb-8', canEdit && 'md:grid-cols-[1fr_200px]')}>
+        <div className="flex min-w-0 flex-col gap-6">
+          <Description card={card} canEdit={canEdit} onSave={(description) => void actions.updateCard(card.id, { description })} />
+          <Activity card={card} />
+        </div>
+
+        {canEdit && (
+          <aside className="flex flex-col gap-6">
+            <SidebarGroup title="Thêm vào thẻ">
+              {(
+                [
+                  ['Thành viên', UserRound],
+                  ['Nhãn', Tag],
+                  ['Việc cần làm', SquareCheck],
+                  ['Ngày', Calendar],
+                  ['Đính kèm', Paperclip],
+                  ['Ảnh bìa', ImageIcon],
+                ] as const
+              ).map(([label, icon]) => (
+                <UpcomingButton key={label} label={label} icon={icon} />
+              ))}
+            </SidebarGroup>
+
+            <SidebarGroup title="Thao tác">
+              <SidebarButton icon={ArrowRight} label="Di chuyển" onClick={move.toggle} expanded={!!move.anchor} />
+              <UpcomingButton label="Sao chép" icon={Copy} />
+              <UpcomingButton label="Lưu trữ" icon={Archive} />
+              <button
+                type="button"
+                onClick={remove.toggle}
+                aria-haspopup="dialog"
+                aria-expanded={!!remove.anchor}
+                className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-sm font-medium text-danger transition-colors hover:bg-danger-soft/40 aria-expanded:bg-danger-soft/40"
+              >
+                <Trash2 size={18} />
+                Xoá thẻ
+              </button>
+            </SidebarGroup>
+          </aside>
+        )}
       </div>
 
       <Popover anchor={move.anchor} onClose={move.close} label="Di chuyển thẻ">
@@ -321,7 +249,7 @@ function CardModal({
           Xoá thẻ
         </button>
       </Popover>
-    </div>
+    </Modal>
   );
 }
 

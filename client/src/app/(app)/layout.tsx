@@ -13,7 +13,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) router.replace('/login');
+    // Phiên hết hạn hẳn → đăng nhập lại rồi quay về đúng trang đang mở (vd liên kết mời)
+    if (!loading && !user) router.replace(`/login?${new URLSearchParams({ next: window.location.pathname + window.location.search })}`);
   }, [loading, user, router]);
 
   if (loading || !user) return <Spinner />;

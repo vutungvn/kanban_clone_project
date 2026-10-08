@@ -1,4 +1,5 @@
 import { api } from './api';
+import { isSafeNextPath } from './safe-path';
 
 export interface User {
   id: string;
@@ -28,8 +29,16 @@ export const authApi = {
   me: () => api<UserResponse>('/auth/me'),
 };
 
-/** Lấy ?next= từ URL, chỉ chấp nhận đường dẫn nội bộ (chống open redirect). */
+/** Lấy ?next= từ URL, chỉ chấp nhận đường dẫn nội bộ. */
 export function getSafeNextPath(fallback = '/boards') {
   const next = new URLSearchParams(window.location.search).get('next');
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : fallback;
+  return isSafeNextPath(next) ? next : fallback;
+}
+
+/** Link giữa đăng nhập ↔ đăng ký, giữ lại `next` (vd đang mở liên kết mời). */
+export function authHref(path: '/login' | '/register', next: string | null, params: Record<string, string> = {}) {
+  const query = new URLSearchParams(params);
+  if (isSafeNextPath(next)) query.set('next', next);
+  const qs = query.toString();
+  return qs ? `${path}?${qs}` : path;
 }

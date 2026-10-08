@@ -8,12 +8,12 @@ import { BackgroundPicker } from '@/components/boards/background-picker';
 import { StarButton } from '@/components/boards/star-button';
 import { Popover, PopoverHeader, usePopoverAnchor } from '@/components/popover';
 import { toast } from '@/components/toast';
-import { ComingSoonBadge } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
 import type { BoardBackground } from '@/lib/board-backgrounds';
 import type { BoardDetail, BoardMember } from '@/lib/boards-api';
 import type { BoardActions } from '@/lib/use-board';
 import { InlineTitle } from './inline-title';
+import { ShareBoardModal } from './share-board-modal';
 
 const ICON_BUTTON =
   'flex h-8 w-8 items-center justify-center rounded text-white/90 transition-colors hover:bg-white/15 hover:text-white aria-expanded:bg-white/20';
@@ -22,6 +22,7 @@ export function BoardHeader({ board, actions }: { board: BoardDetail; actions: B
   const isAdmin = board.role === 'ADMIN';
   const owner = board.members.find((m) => m.role === 'ADMIN') ?? board.members[0];
   const menu = usePopoverAnchor();
+  const [sharing, setSharing] = useState(false);
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 bg-black/25 px-4 text-white backdrop-blur-md">
@@ -51,16 +52,16 @@ export function BoardHeader({ board, actions }: { board: BoardDetail; actions: B
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <MemberStack members={board.members} />
+        <MemberStack members={board.members} onClick={() => setSharing(true)} />
         <button
           type="button"
-          disabled
-          title="Chia sẻ bảng — Sắp có"
-          className="hidden h-8 cursor-not-allowed items-center gap-1.5 rounded bg-white px-3 text-sm font-medium text-ink shadow-sm sm:flex"
+          onClick={() => setSharing(true)}
+          aria-haspopup="dialog"
+          aria-label="Chia sẻ bảng"
+          className="flex h-8 items-center gap-1.5 rounded bg-white px-2.5 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-surface-low sm:px-3"
         >
           <UserPlus size={18} />
-          Chia sẻ
-          <ComingSoonBadge />
+          <span className="hidden sm:inline">Chia sẻ</span>
         </button>
         <button type="button" disabled aria-label="Lọc thẻ (sắp có)" title="Lọc thẻ — Sắp có" className={`${ICON_BUTTON} cursor-not-allowed opacity-50`}>
           <ListFilter size={19} />
@@ -80,15 +81,23 @@ export function BoardHeader({ board, actions }: { board: BoardDetail; actions: B
       <Popover anchor={menu.anchor} onClose={menu.close} label="Menu bảng" align="end" width={320}>
         <BoardMenuContent board={board} actions={actions} onClose={menu.close} />
       </Popover>
+
+      {sharing && <ShareBoardModal board={board} actions={actions} onClose={() => setSharing(false)} />}
     </header>
   );
 }
 
-function MemberStack({ members }: { members: BoardMember[] }) {
+function MemberStack({ members, onClick }: { members: BoardMember[]; onClick: () => void }) {
   const shown = members.slice(0, 3);
   const extra = members.length - shown.length;
   return (
-    <div className="flex -space-x-1.5">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${members.length} thành viên — xem và quản lý`}
+      title="Thành viên của bảng"
+      className="flex -space-x-1.5 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white"
+    >
       {shown.map((m) => (
         <Avatar key={m.id} name={m.name} seed={m.id} size={28} className="ring-2 ring-white/30" />
       ))}
@@ -97,7 +106,7 @@ function MemberStack({ members }: { members: BoardMember[] }) {
           +{extra}
         </span>
       )}
-    </div>
+    </button>
   );
 }
 

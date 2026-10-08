@@ -7,7 +7,7 @@ import { AuthHeader } from "@/components/auth-header";
 import { useAuth } from "@/components/auth-provider";
 import { Alert, Field, PasswordField, SubmitButton } from "@/components/ui";
 import { ApiError } from "@/lib/api";
-import { getSafeNextPath } from "@/lib/auth";
+import { authHref, getSafeNextPath } from "@/lib/auth";
 
 type FieldErrors = Partial<Record<"email" | "password", string>>;
 
@@ -114,7 +114,7 @@ function LoginForm() {
       <p className="text-center text-sm text-ink-subtle">
         Chưa có tài khoản?{" "}
         <Link
-          href="/register"
+          href={authHref("/register", searchParams.get("next"))}
           className="font-semibold text-brand transition-colors hover:text-brand-hover hover:underline"
         >
           Đăng ký

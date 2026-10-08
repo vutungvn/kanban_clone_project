@@ -1,10 +1,23 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '@/components/auth-provider';
 import { toast } from '@/components/toast';
 import { ApiError, errorMessage } from './api';
 import type { BoardBackground } from './board-backgrounds';
-import { boardsApi, cardsApi, listsApi, toSummary, type BoardDetail, type Card, type List } from './boards-api';
+import {
+  boardsApi,
+  cardsApi,
+  joinRequestsApi,
+  listsApi,
+  membersApi,
+  toSummary,
+  type BoardDetail,
+  type BoardMember,
+  type BoardRole,
+  type Card,
+  type List,
+} from './boards-api';
 import { boardsStore } from './boards-store';
 
 type Status = 'loading' | 'ready' | 'not-found' | 'error';
@@ -13,6 +26,9 @@ const mapList = (board: BoardDetail, listId: string, fn: (list: List) => List): 
   ...board,
   lists: board.lists.map((l) => (l.id === listId ? fn(l) : l)),
 });
+
+/** Quyền đã bị đổi (403) hoặc bị xoá khỏi bảng / dữ liệu đã bị xoá (404) */
+const isAccessError = (e: unknown) => e instanceof ApiError && (e.status === 403 || e.status === 404);
 
 const mapCard = (board: BoardDetail, cardId: string, fn: (card: Card) => Card): BoardDetail => ({
   ...board,
@@ -23,8 +39,10 @@ const mapCard = (board: BoardDetail, cardId: string, fn: (card: Card) => Card): 
  * Tải 1 board kèm list/card và cung cấp các thao tác chỉnh sửa.
  * Sửa/xoá: đổi giao diện ngay rồi gọi API, lỗi thì hoàn tác + toast.
  * Thêm mới: chờ API trả về (cần id thật) rồi mới hiển thị; lỗi ném ra cho nơi gọi xử lý.
+ * Lỗi 403/404 khi thao tác → tải lại bảng để giao diện khớp quyền hiện tại (bị hạ quyền, bị xoá khỏi bảng...).
  */
 export function useBoard(boardId: string) {
+  const meId = useAuth().user?.id;
   const [board, setBoardState] = useState<BoardDetail | null>(null);
   const [status, setStatus] = useState<Status>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +70,7 @@ export function useBoard(boardId: string) {
       .catch((e) => {
         if (cancelled) return;
         if (e instanceof ApiError && e.status === 404) {
+          boardsStore.remove(boardId);
           setStatus('not-found');
         } else {
           setError(errorMessage(e));
@@ -62,6 +81,27 @@ export function useBoard(boardId: string) {
       cancelled = true;
     };
   }, [boardId, reloadKey, commit]);
+
+  /** Tải lại ngầm từ server. Không còn là thành viên → màn "Không tìm thấy bảng". */
+  const resync = useCallback(() => {
+    boardsApi
+      .get(boardId)
+      .then((detail) => {
+        commit(detail);
+        boardsStore.upsert(toSummary(detail));
+      })
+      .catch((e) => {
+        if (e instanceof ApiError && e.status === 404) {
+          boardsStore.remove(boardId);
+          setStatus('not-found');
+        }
+      });
+  }, [boardId, commit]);
+
+  /** Đồng bộ thành viên / vai trò mới nhất sang danh sách bảng (trang /boards). */
+  const syncSummary = useCallback(() => {
+    if (boardRef.current) boardsStore.upsert(toSummary(boardRef.current));
+  }, []);
 
   /** Áp thay đổi lên giao diện ngay, gọi API; lỗi → trả lại trạng thái trước đó. */
   const optimistic = useCallback(
@@ -74,9 +114,36 @@ export function useBoard(boardId: string) {
       } catch (e) {
         commit(snapshot);
         toast.error(errorMessage(e));
+        if (isAccessError(e)) resync();
       }
     },
-    [commit],
+    [commit, resync],
+  );
+
+  /** Thêm mới thất bại vì quyền → tải lại; lỗi vẫn ném ra cho nơi gọi hiển thị. */
+  const create = useCallback(
+    async <T,>(request: () => Promise<T>) => {
+      try {
+        return await request();
+      } catch (e) {
+        if (isAccessError(e)) resync();
+        throw e;
+      }
+    },
+    [resync],
+  );
+
+  /** Thêm thành viên vừa vào bảng vào giao diện + danh sách bảng. */
+  const addMember = useCallback(
+    (member: BoardMember) => {
+      const current = boardRef.current;
+      if (current) {
+        commit({ ...current, members: [...current.members.filter((m) => m.id !== member.id), member] });
+        syncSummary();
+      }
+      return member;
+    },
+    [commit, syncSummary],
   );
 
   /** Kéo thả thất bại: trả về thứ tự cũ ngay, rồi tải lại ngầm từ server để chắc chắn khớp DB. */
@@ -84,12 +151,9 @@ export function useBoard(boardId: string) {
     (rollback: List[], e: unknown) => {
       if (boardRef.current) commit({ ...boardRef.current, lists: rollback });
       toast.error(errorMessage(e));
-      boardsApi
-        .get(boardId)
-        .then(commit)
-        .catch(() => undefined);
+      resync();
     },
-    [boardId, commit],
+    [commit, resync],
   );
 
   const actions = useMemo(
@@ -157,7 +221,7 @@ export function useBoard(boardId: string) {
       },
 
       addList: async (title: string) => {
-        const list = await listsApi.create(boardId, title);
+        const list = await create(() => listsApi.create(boardId, title));
         const current = boardRef.current;
         if (current) commit({ ...current, lists: [...current.lists, list] });
       },
@@ -175,7 +239,7 @@ export function useBoard(boardId: string) {
         ),
 
       addCard: async (listId: string, title: string) => {
-        const card = await cardsApi.create(listId, title);
+        const card = await create(() => cardsApi.create(listId, title));
         const current = boardRef.current;
         if (current) commit(mapList(current, listId, (l) => ({ ...l, cards: [...l.cards, card] })));
       },
@@ -191,8 +255,45 @@ export function useBoard(boardId: string) {
           (b) => ({ ...b, lists: b.lists.map((l) => ({ ...l, cards: l.cards.filter((c) => c.id !== cardId) })) }),
           () => cardsApi.remove(cardId),
         ),
+
+      /** Mời theo email — chờ API (cần dữ liệu thật); lỗi ném ra để hiện dưới ô nhập. */
+      inviteMember: async (email: string, role: BoardRole) => addMember(await create(() => membersApi.invite(boardId, email, role))),
+
+      /** Duyệt yêu cầu tham gia — lỗi ném ra (vd ADMIN khác vừa duyệt / từ chối trước). */
+      approveJoinRequest: async (userId: string, role: BoardRole) =>
+        addMember(await create(() => joinRequestsApi.approve(boardId, userId, role))),
+
+      /** Đổi vai trò; đổi của chính mình thì quyền trên giao diện đổi theo ngay. */
+      changeMemberRole: (userId: string, role: BoardRole) =>
+        optimistic(
+          (b) => ({
+            ...b,
+            role: userId === meId ? role : b.role,
+            members: b.members.map((m) => (m.id === userId ? { ...m, role } : m)),
+          }),
+          async () => {
+            await membersApi.updateRole(boardId, userId, role);
+            syncSummary();
+          },
+        ),
+
+      removeMember: (userId: string) =>
+        optimistic(
+          (b) => ({ ...b, members: b.members.filter((m) => m.id !== userId) }),
+          async () => {
+            await membersApi.remove(boardId, userId);
+            syncSummary();
+          },
+        ),
+
+      /** Rời bảng — chờ API rồi mới bỏ bảng khỏi danh sách; lỗi ném ra (vd ADMIN cuối cùng). */
+      leaveBoard: async () => {
+        if (!meId) return;
+        await membersApi.remove(boardId, meId);
+        boardsStore.remove(boardId);
+      },
     }),
-    [boardId, commit, optimistic, rollbackMove],
+    [boardId, meId, addMember, commit, create, optimistic, rollbackMove, syncSummary],
   );
 
   return { board, status, error, actions };

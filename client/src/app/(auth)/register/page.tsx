@@ -2,12 +2,13 @@
 
 import { KeyRound, Lock, Mail, User } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
 import { AuthHeader } from "@/components/auth-header";
 import { useAuth } from "@/components/auth-provider";
 import { Alert, Field, PasswordField, SubmitButton } from "@/components/ui";
 import { ApiError } from "@/lib/api";
+import { authHref } from "@/lib/auth";
 
 type FormValues = {
   name: string;
@@ -33,8 +34,19 @@ function validate(v: FormValues): FieldErrors {
 }
 
 export default function RegisterPage() {
+  // useSearchParams cần Suspense boundary khi build
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
   const { register } = useAuth();
   const router = useRouter();
+  // Đến từ liên kết mời → đăng ký xong, đăng nhập rồi quay lại đúng trang đó
+  const next = useSearchParams().get("next");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -71,7 +83,7 @@ export default function RegisterPage() {
         password: values.password,
       });
       router.replace(
-        `/login?${new URLSearchParams({ registered: "1", email: values.email })}`,
+        authHref("/login", next, { registered: "1", email: values.email }),
       );
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -142,7 +154,7 @@ export default function RegisterPage() {
       <p className="mt-6 text-center text-sm text-ink-subtle">
         Đã có tài khoản?{" "}
         <Link
-          href="/login"
+          href={authHref("/login", next)}
           className="font-semibold text-brand transition-colors hover:text-brand-hover hover:underline"
         >
           Đăng nhập

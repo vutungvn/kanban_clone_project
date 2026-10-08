@@ -8,6 +8,7 @@ export type BoardRole = 'ADMIN' | 'MEMBER' | 'VIEWER';
 export interface BoardMember {
   id: string;
   name: string;
+  email: string;
   avatarUrl: string | null;
   role: BoardRole;
 }
@@ -51,6 +52,27 @@ export interface BoardDetail extends BoardSummary {
   lists: List[];
 }
 
+/** Liên kết mời — null = đang tắt */
+export interface InviteLink {
+  token: string;
+  role: Extract<BoardRole, 'MEMBER' | 'VIEWER'>;
+  requiresApproval: boolean;
+}
+
+/** Xem trước khi mở /invite/:token — không chứa nội dung bảng */
+export interface InvitePreview {
+  board: { id: string; title: string; background: BoardBackground; memberCount: number };
+  role: InviteLink['role'];
+  requiresApproval: boolean;
+  /** Trạng thái của user hiện tại */
+  status: 'NONE' | 'PENDING' | 'MEMBER';
+}
+
+export interface JoinRequest {
+  user: Omit<BoardMember, 'role'>;
+  createdAt: string;
+}
+
 export interface BoardInput {
   title: string;
   background: BoardBackground;
@@ -72,6 +94,52 @@ export const boardsApi = {
   setStarred: (boardId: string, starred: boolean) =>
     api<{ starred: boolean }>(`/boards/${id(boardId)}/star`, send('PUT', { starred })),
 };
+
+export const membersApi = {
+  /** Mời người đã có tài khoản theo email (chỉ ADMIN) */
+  invite: (boardId: string, email: string, role: BoardRole) =>
+    api<{ member: BoardMember }>(`/boards/${id(boardId)}/members`, send('POST', { email, role })).then((r) => r.member),
+  updateRole: (boardId: string, userId: string, role: BoardRole) =>
+    api<{ member: BoardMember }>(`/boards/${id(boardId)}/members/${id(userId)}`, send('PATCH', { role })).then(
+      (r) => r.member,
+    ),
+  /** userId là chính mình = rời bảng */
+  remove: (boardId: string, userId: string) => api<void>(`/boards/${id(boardId)}/members/${id(userId)}`, send('DELETE')),
+};
+
+export const inviteLinkApi = {
+  get: (boardId: string) => api<{ link: InviteLink | null }>(`/boards/${id(boardId)}/invite-link`).then((r) => r.link),
+  /** Tạo mới / tạo lại — luôn ra token mới, link cũ hết hiệu lực */
+  create: (boardId: string, input: Omit<InviteLink, 'token'>) =>
+    api<{ link: InviteLink }>(`/boards/${id(boardId)}/invite-link`, send('PUT', input)).then((r) => r.link),
+  /** Đổi cài đặt, giữ nguyên token */
+  update: (boardId: string, input: Partial<Omit<InviteLink, 'token'>>) =>
+    api<{ link: InviteLink }>(`/boards/${id(boardId)}/invite-link`, send('PATCH', input)).then((r) => r.link),
+  disable: (boardId: string) => api<void>(`/boards/${id(boardId)}/invite-link`, send('DELETE')),
+};
+
+export const joinRequestsApi = {
+  list: (boardId: string) =>
+    api<{ requests: JoinRequest[] }>(`/boards/${id(boardId)}/join-requests`).then((r) => r.requests),
+  approve: (boardId: string, userId: string, role: BoardRole) =>
+    api<{ member: BoardMember }>(`/boards/${id(boardId)}/join-requests/${id(userId)}/approve`, send('POST', { role })).then(
+      (r) => r.member,
+    ),
+  reject: (boardId: string, userId: string) =>
+    api<void>(`/boards/${id(boardId)}/join-requests/${id(userId)}`, send('DELETE')),
+};
+
+/** Phía người nhận liên kết mời */
+export const invitesApi = {
+  preview: (token: string) => api<{ invite: InvitePreview }>(`/invites/${id(token)}`).then((r) => r.invite),
+  /** Tham gia ngay, hoặc gửi yêu cầu nếu link cần duyệt */
+  join: (token: string) =>
+    api<{ status: 'PENDING' | 'MEMBER'; boardId: string }>(`/invites/${id(token)}/join`, send('POST')),
+  cancelRequest: (token: string) => api<void>(`/invites/${id(token)}/request`, send('DELETE')),
+};
+
+/** Đường dẫn đầy đủ để gửi cho người khác */
+export const inviteUrl = (token: string) => `${window.location.origin}/invite/${token}`;
 
 export const listsApi = {
   create: (boardId: string, title: string) =>

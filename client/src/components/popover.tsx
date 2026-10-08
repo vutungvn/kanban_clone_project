@@ -6,6 +6,10 @@ import { X } from 'lucide-react';
 
 const VIEWPORT_MARGIN = 8;
 
+let openCount = 0;
+/** Có popover nào đang mở không — modal dùng để Esc / bấm nền chỉ đóng popover trước. */
+export const isPopoverOpen = () => openCount > 0;
+
 /**
  * Popover neo vào một phần tử (anchor). Mở khi `anchor` khác null.
  * Tự canh trong màn hình, đóng khi bấm ra ngoài hoặc nhấn Esc.
@@ -50,6 +54,15 @@ export function Popover({
       window.removeEventListener('scroll', update, true);
     };
   }, [anchor, align, width]);
+
+  const open = !!anchor;
+  useEffect(() => {
+    if (!open) return;
+    openCount++;
+    return () => {
+      openCount--;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!anchor) return;
