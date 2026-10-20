@@ -8,7 +8,9 @@ import type { BoardBackground } from './board-backgrounds';
 import {
   boardsApi,
   cardsApi,
+  checklistsApi,
   joinRequestsApi,
+  labelsApi,
   listsApi,
   membersApi,
   toSummary,
@@ -16,9 +18,13 @@ import {
   type BoardMember,
   type BoardRole,
   type Card,
+  type CardInput,
+  type Checklist,
+  type ChecklistItem,
   type List,
 } from './boards-api';
 import { boardsStore } from './boards-store';
+import type { LabelColor } from './labels';
 
 type Status = 'loading' | 'ready' | 'not-found' | 'error';
 
@@ -34,6 +40,33 @@ const mapCard = (board: BoardDetail, cardId: string, fn: (card: Card) => Card): 
   ...board,
   lists: board.lists.map((l) => ({ ...l, cards: l.cards.map((c) => (c.id === cardId ? fn(c) : c)) })),
 });
+
+/** Áp `fn` cho mọi thẻ của bảng (vd gỡ 1 nhãn / 1 thành viên khỏi tất cả). */
+const mapAllCards = (board: BoardDetail, fn: (card: Card) => Card): BoardDetail => ({
+  ...board,
+  lists: board.lists.map((l) => ({ ...l, cards: l.cards.map(fn) })),
+});
+
+const mapChecklist = (board: BoardDetail, checklistId: string, fn: (checklist: Checklist) => Checklist) =>
+  mapAllCards(board, (c) =>
+    c.checklists.some((cl) => cl.id === checklistId)
+      ? { ...c, checklists: c.checklists.map((cl) => (cl.id === checklistId ? fn(cl) : cl)) }
+      : c,
+  );
+
+const mapChecklistItem = (board: BoardDetail, itemId: string, fn: (item: ChecklistItem) => ChecklistItem) =>
+  mapAllCards(board, (c) =>
+    c.checklists.some((cl) => cl.items.some((i) => i.id === itemId))
+      ? {
+          ...c,
+          checklists: c.checklists.map((cl) => ({ ...cl, items: cl.items.map((i) => (i.id === itemId ? fn(i) : i)) })),
+        }
+      : c,
+  );
+
+/** Thêm / bỏ `value` khỏi mảng id (không trùng lặp). */
+const toggleId = (ids: string[], value: string, on: boolean) =>
+  on ? (ids.includes(value) ? ids : [...ids, value]) : ids.filter((id) => id !== value);
 
 /**
  * Tải 1 board kèm list/card và cung cấp các thao tác chỉnh sửa.
@@ -244,10 +277,94 @@ export function useBoard(boardId: string) {
         if (current) commit(mapList(current, listId, (l) => ({ ...l, cards: [...l.cards, card] })));
       },
 
-      updateCard: (cardId: string, input: { title?: string; description?: string | null }) =>
+      /** Sửa tiêu đề, mô tả, ngày. Xoá hạn chót thì bỏ luôn "hoàn thành" (giống server). */
+      updateCard: (cardId: string, input: CardInput) =>
         optimistic(
-          (b) => mapCard(b, cardId, (c) => ({ ...c, ...input })),
+          (b) =>
+            mapCard(b, cardId, (c) => {
+              const next = { ...c, ...input };
+              return next.dueDate ? next : { ...next, dueComplete: false };
+            }),
           () => cardsApi.update(cardId, input),
+        ),
+
+      /** Gắn / gỡ nhãn của thẻ. */
+      setCardLabel: (cardId: string, labelId: string, on: boolean) =>
+        optimistic(
+          (b) => mapCard(b, cardId, (c) => ({ ...c, labelIds: toggleId(c.labelIds, labelId, on) })),
+          () => cardsApi.setLabel(cardId, labelId, on),
+        ),
+
+      /** Giao / bỏ giao thẻ cho 1 thành viên của bảng. */
+      setCardMember: (cardId: string, userId: string, on: boolean) =>
+        optimistic(
+          (b) => mapCard(b, cardId, (c) => ({ ...c, memberIds: toggleId(c.memberIds, userId, on) })),
+          () => cardsApi.setMember(cardId, userId, on),
+        ),
+
+      /** Tạo nhãn — chờ API (cần id thật); lỗi ném ra để hiện trong popover. */
+      createLabel: async (input: { name: string; color: LabelColor }) => {
+        const label = await create(() => labelsApi.create(boardId, input));
+        const current = boardRef.current;
+        if (current) commit({ ...current, labels: [...current.labels, label] });
+        return label;
+      },
+
+      updateLabel: (labelId: string, input: { name?: string; color?: LabelColor }) =>
+        optimistic(
+          (b) => ({ ...b, labels: b.labels.map((l) => (l.id === labelId ? { ...l, ...input } : l)) }),
+          () => labelsApi.update(labelId, input),
+        ),
+
+      /** Xoá nhãn khỏi bảng — đồng thời gỡ khỏi mọi thẻ. */
+      deleteLabel: (labelId: string) =>
+        optimistic(
+          (b) =>
+            mapAllCards({ ...b, labels: b.labels.filter((l) => l.id !== labelId) }, (c) =>
+              c.labelIds.includes(labelId) ? { ...c, labelIds: c.labelIds.filter((id) => id !== labelId) } : c,
+            ),
+          () => labelsApi.remove(labelId),
+        ),
+
+      addChecklist: async (cardId: string, title: string) => {
+        const checklist = await create(() => checklistsApi.create(cardId, title));
+        const current = boardRef.current;
+        if (current) commit(mapCard(current, cardId, (c) => ({ ...c, checklists: [...c.checklists, checklist] })));
+        return checklist;
+      },
+
+      renameChecklist: (checklistId: string, title: string) =>
+        optimistic(
+          (b) => mapChecklist(b, checklistId, (cl) => ({ ...cl, title })),
+          () => checklistsApi.rename(checklistId, title),
+        ),
+
+      deleteChecklist: (checklistId: string) =>
+        optimistic(
+          (b) => mapAllCards(b, (c) => ({ ...c, checklists: c.checklists.filter((cl) => cl.id !== checklistId) })),
+          () => checklistsApi.remove(checklistId),
+        ),
+
+      addChecklistItem: async (checklistId: string, title: string) => {
+        const item = await create(() => checklistsApi.addItem(checklistId, title));
+        const current = boardRef.current;
+        if (current) commit(mapChecklist(current, checklistId, (cl) => ({ ...cl, items: [...cl.items, item] })));
+      },
+
+      updateChecklistItem: (itemId: string, input: { title?: string; completed?: boolean }) =>
+        optimistic(
+          (b) => mapChecklistItem(b, itemId, (i) => ({ ...i, ...input })),
+          () => checklistsApi.updateItem(itemId, input),
+        ),
+
+      deleteChecklistItem: (itemId: string) =>
+        optimistic(
+          (b) =>
+            mapAllCards(b, (c) => ({
+              ...c,
+              checklists: c.checklists.map((cl) => ({ ...cl, items: cl.items.filter((i) => i.id !== itemId) })),
+            })),
+          () => checklistsApi.removeItem(itemId),
         ),
 
       deleteCard: (cardId: string) =>
@@ -277,9 +394,13 @@ export function useBoard(boardId: string) {
           },
         ),
 
+      /** Xoá thành viên — server gỡ người đó khỏi mọi thẻ nên giao diện cũng gỡ theo. */
       removeMember: (userId: string) =>
         optimistic(
-          (b) => ({ ...b, members: b.members.filter((m) => m.id !== userId) }),
+          (b) =>
+            mapAllCards({ ...b, members: b.members.filter((m) => m.id !== userId) }, (c) =>
+              c.memberIds.includes(userId) ? { ...c, memberIds: c.memberIds.filter((id) => id !== userId) } : c,
+            ),
           async () => {
             await membersApi.remove(boardId, userId);
             syncSummary();

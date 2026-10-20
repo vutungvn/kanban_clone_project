@@ -16,7 +16,20 @@ import { InlineTitle } from './inline-title';
 
 const COLUMN_CLASS = 'flex max-h-full w-68 shrink-0 flex-col rounded-xl p-2.5';
 
-export function ListColumn({ list, canEdit, actions }: { list: List; canEdit: boolean; actions: BoardActions }) {
+export function ListColumn({
+  list,
+  totalCards,
+  canEdit,
+  canDragCards = canEdit,
+  actions,
+}: {
+  list: List;
+  /** Đang lọc: tổng số thẻ thật của danh sách (list.cards chỉ còn thẻ khớp) */
+  totalCards?: number;
+  canEdit: boolean;
+  canDragCards?: boolean;
+  actions: BoardActions;
+}) {
   const [composerOpen, setComposerOpen] = useState(false);
   const cardsRef = useRef<HTMLOListElement>(null);
   const menu = usePopoverAnchor();
@@ -58,8 +71,11 @@ export function ListColumn({ list, canEdit, actions }: { list: List; canEdit: bo
             className="rounded px-2 py-1 text-sm font-semibold wrap-break-word text-ink hover:bg-black/5"
             inputClassName="h-8 w-full bg-white px-2 text-sm font-semibold text-ink ring-2 ring-brand"
           />
-          <span className="shrink-0 rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-semibold text-ink-subtle">
-            {list.cards.length}
+          <span
+            title={totalCards === undefined ? undefined : `${list.cards.length} trên ${totalCards} thẻ khớp bộ lọc`}
+            className="shrink-0 rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-semibold text-ink-subtle"
+          >
+            {totalCards === undefined ? list.cards.length : `${list.cards.length}/${totalCards}`}
           </span>
         </div>
         {canEdit && (
@@ -80,7 +96,7 @@ export function ListColumn({ list, canEdit, actions }: { list: List; canEdit: bo
         {/* min-h-2: danh sách trống vẫn có chỗ để thả thẻ vào */}
         <ol ref={cardsRef} className="mt-1 flex min-h-2 flex-1 flex-col gap-2 overflow-y-auto p-0.5">
           {list.cards.map((card) => (
-            <CardItem key={card.id} card={card} canEdit={canEdit} actions={actions} />
+            <CardItem key={card.id} card={card} canEdit={canEdit} canDrag={canDragCards} actions={actions} />
           ))}
         </ol>
       </SortableContext>

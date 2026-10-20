@@ -1,0 +1,102 @@
+'use client';
+
+import { AlignLeft, Clock, SquareCheck } from 'lucide-react';
+import { createContext, useContext } from 'react';
+import { Avatar } from '@/components/avatar';
+import type { BoardMember, Card, Label } from '@/lib/boards-api';
+import { DUE_STATUS_CLASS, DUE_STATUS_LABEL, dueStatus, formatCardDates } from '@/lib/card-dates';
+import { cn } from '@/lib/cn';
+import { labelDisplayName } from '@/lib/labels';
+import { checklistProgress } from './card-checklists';
+import { LabelChip } from './card-ui';
+
+/** Nhãn + thành viên của bảng — thẻ chỉ giữ id nên cần tra cứu khi hiển thị. */
+const BoardLookupContext = createContext<{ labels: Label[]; members: BoardMember[] }>({ labels: [], members: [] });
+export const BoardLookupProvider = BoardLookupContext.Provider;
+
+/** Nhãn của thẻ theo thứ tự nhãn của bảng; thành viên theo thứ tự được giao. Bỏ qua id không còn tồn tại. */
+export function resolveCard(card: Card, labels: Label[], members: BoardMember[]) {
+  return {
+    labels: labels.filter((l) => card.labelIds.includes(l.id)),
+    members: card.memberIds.map((id) => members.find((m) => m.id === id)).filter((m): m is BoardMember => !!m),
+  };
+}
+
+export function useResolvedCard(card: Card) {
+  const { labels, members } = useContext(BoardLookupContext);
+  return resolveCard(card, labels, members);
+}
+
+/** Mô tả ngắn cho trình đọc màn hình: nhãn, ngày, checklist, thành viên. */
+export function describeCard(card: Card, labels: Label[], members: BoardMember[]) {
+  const parts: string[] = [];
+  if (labels.length) parts.push(`Nhãn: ${labels.map(labelDisplayName).join(', ')}`);
+  const dates = formatCardDates(card);
+  const status = dueStatus(card);
+  if (dates) parts.push(`Ngày: ${dates}${status && DUE_STATUS_LABEL[status] ? ` (${DUE_STATUS_LABEL[status]})` : ''}`);
+  const { done, total } = checklistProgress(card.checklists);
+  if (total) parts.push(`Checklist ${done}/${total}`);
+  if (members.length) parts.push(`Thành viên: ${members.map((m) => m.name).join(', ')}`);
+  return parts.join('. ');
+}
+
+/** Nội dung thẻ ngoài bảng: nhãn, tiêu đề, các badge, avatar thành viên. */
+export function CardFace({ card }: { card: Card }) {
+  const { labels, members } = useResolvedCard(card);
+  const dates = formatCardDates(card);
+  const status = dueStatus(card);
+  const { done, total } = checklistProgress(card.checklists);
+  const hasBadges = !!dates || !!card.description || total > 0 || members.length > 0;
+
+  return (
+    <>
+      {labels.length > 0 && (
+        <div className="mb-1.5 flex flex-wrap gap-1 pr-6">
+          {labels.map((l) => (
+            <LabelChip key={l.id} label={l} size="xs" />
+          ))}
+        </div>
+      )}
+      <p className="pr-6 wrap-break-word whitespace-pre-wrap">{card.title}</p>
+      {hasBadges && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-ink-subtle">
+          {dates && (
+            <span
+              title={status ? (DUE_STATUS_LABEL[status] ?? 'Hạn chót') : 'Ngày bắt đầu'}
+              className={cn('flex h-6 items-center gap-1 rounded px-1.5', status && DUE_STATUS_CLASS[status])}
+            >
+              <Clock size={14} aria-hidden />
+              {dates}
+            </span>
+          )}
+          {card.description && (
+            <span className="flex h-6 items-center px-1" title="Thẻ có mô tả">
+              <AlignLeft size={16} aria-hidden />
+            </span>
+          )}
+          {total > 0 && (
+            <span
+              title="Việc cần làm"
+              className={cn('flex h-6 items-center gap-1 rounded px-1.5', done === total && 'bg-success text-white')}
+            >
+              <SquareCheck size={14} aria-hidden />
+              {done}/{total}
+            </span>
+          )}
+          {members.length > 0 && (
+            <span className="ml-auto flex -space-x-1.5">
+              {members.slice(0, 4).map((m) => (
+                <Avatar key={m.id} name={m.name} seed={m.id} size={24} className="ring-2 ring-white" />
+              ))}
+              {members.length > 4 && (
+                <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-surface-high px-1 text-[10px] font-medium text-ink ring-2 ring-white">
+                  +{members.length - 4}
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+      )}
+    </>
+  );
+}

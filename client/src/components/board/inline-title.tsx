@@ -61,6 +61,7 @@ export function InlineTitle({
       onKeyDown={(e) => {
         if (e.key === 'Enter') e.currentTarget.blur();
         if (e.key === 'Escape') {
+          e.preventDefault(); // nằm trong modal (tên checklist) thì Esc chỉ huỷ sửa, không đóng modal
           cancelled.current = true;
           e.currentTarget.blur();
         }

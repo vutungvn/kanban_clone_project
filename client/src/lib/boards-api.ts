@@ -1,5 +1,6 @@
 import { api } from './api';
 import type { BoardBackground } from './board-backgrounds';
+import type { LabelColor } from './labels';
 
 // Kiểu dữ liệu khớp với response của API (xem Swagger: /api/docs)
 
@@ -27,14 +28,61 @@ export interface BoardSummary {
   members: BoardMember[];
 }
 
+/** Nhãn của bảng — dùng chung cho mọi thẻ. `name` có thể rỗng (nhãn chỉ có màu). */
+export interface Label {
+  id: string;
+  boardId: string;
+  name: string;
+  color: LabelColor;
+  createdAt: string;
+}
+
+export interface ChecklistItem {
+  id: string;
+  checklistId: string;
+  title: string;
+  completed: boolean;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Checklist {
+  id: string;
+  cardId: string;
+  title: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+  items: ChecklistItem[];
+}
+
 export interface Card {
   id: string;
   listId: string;
   title: string;
   description: string | null;
   position: number;
+  startDate: string | null;
+  dueDate: string | null;
+  /** Đã hoàn thành hạn chót */
+  dueComplete: boolean;
+  /** ID nhãn — chi tiết ở `board.labels` */
+  labelIds: string[];
+  /** ID thành viên được giao — chi tiết ở `board.members` */
+  memberIds: string[];
+  checklists: Checklist[];
   createdAt: string;
   updatedAt: string;
+}
+
+/** Các trường sửa được qua PATCH /cards/:id. Ngày gửi ISO; `null` = xoá. */
+export interface CardInput {
+  title?: string;
+  description?: string | null;
+  startDate?: string | null;
+  dueDate?: string | null;
+  dueComplete?: boolean;
 }
 
 export interface List {
@@ -49,6 +97,7 @@ export interface List {
 
 export interface BoardDetail extends BoardSummary {
   updatedAt: string;
+  labels: Label[];
   lists: List[];
 }
 
@@ -155,15 +204,43 @@ export const listsApi = {
 export const cardsApi = {
   create: (listId: string, title: string) =>
     api<{ card: Card }>(`/lists/${id(listId)}/cards`, send('POST', { title })).then((r) => r.card),
-  update: (cardId: string, input: { title?: string; description?: string | null }) =>
+  update: (cardId: string, input: CardInput) =>
     api<{ card: Card }>(`/cards/${id(cardId)}`, send('PATCH', input)).then((r) => r.card),
   remove: (cardId: string) => api<void>(`/cards/${id(cardId)}`, send('DELETE')),
   /** Chuyển thẻ tới vị trí `index` của danh sách `listId` (cùng bảng) */
   move: (cardId: string, listId: string, index: number) =>
     api<{ card: Card }>(`/cards/${id(cardId)}/move`, send('PATCH', { listId, index })).then((r) => r.card),
+  /** Gắn / gỡ nhãn — đã gắn / chưa gắn thì server bỏ qua */
+  setLabel: (cardId: string, labelId: string, on: boolean) =>
+    api<void>(`/cards/${id(cardId)}/labels/${id(labelId)}`, send(on ? 'PUT' : 'DELETE')),
+  /** Giao / bỏ giao thẻ cho thành viên của bảng */
+  setMember: (cardId: string, userId: string, on: boolean) =>
+    api<void>(`/cards/${id(cardId)}/members/${id(userId)}`, send(on ? 'PUT' : 'DELETE')),
+};
+
+export const labelsApi = {
+  create: (boardId: string, input: { name: string; color: LabelColor }) =>
+    api<{ label: Label }>(`/boards/${id(boardId)}/labels`, send('POST', input)).then((r) => r.label),
+  update: (labelId: string, input: { name?: string; color?: LabelColor }) =>
+    api<{ label: Label }>(`/labels/${id(labelId)}`, send('PATCH', input)).then((r) => r.label),
+  /** Xoá khỏi bảng và gỡ khỏi mọi thẻ */
+  remove: (labelId: string) => api<void>(`/labels/${id(labelId)}`, send('DELETE')),
+};
+
+export const checklistsApi = {
+  create: (cardId: string, title: string) =>
+    api<{ checklist: Checklist }>(`/cards/${id(cardId)}/checklists`, send('POST', { title })).then((r) => r.checklist),
+  rename: (checklistId: string, title: string) =>
+    api<{ checklist: Checklist }>(`/checklists/${id(checklistId)}`, send('PATCH', { title })).then((r) => r.checklist),
+  remove: (checklistId: string) => api<void>(`/checklists/${id(checklistId)}`, send('DELETE')),
+  addItem: (checklistId: string, title: string) =>
+    api<{ item: ChecklistItem }>(`/checklists/${id(checklistId)}/items`, send('POST', { title })).then((r) => r.item),
+  updateItem: (itemId: string, input: { title?: string; completed?: boolean }) =>
+    api<{ item: ChecklistItem }>(`/checklist-items/${id(itemId)}`, send('PATCH', input)).then((r) => r.item),
+  removeItem: (itemId: string) => api<void>(`/checklist-items/${id(itemId)}`, send('DELETE')),
 };
 
 /** Lấy phần "tóm tắt" của board chi tiết — để đồng bộ vào danh sách bảng. */
-export function toSummary({ lists: _lists, updatedAt: _updatedAt, ...summary }: BoardDetail): BoardSummary {
+export function toSummary({ lists: _lists, labels: _labels, updatedAt: _updatedAt, ...summary }: BoardDetail): BoardSummary {
   return summary;
 }

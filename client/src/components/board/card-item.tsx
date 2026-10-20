@@ -2,24 +2,38 @@
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlignLeft, Pencil, Trash2, X } from 'lucide-react';
+import { Pencil, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { Card } from '@/lib/boards-api';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
 import { useOutsideClick } from '@/lib/use-outside-click';
+import { CardFace, describeCard, useResolvedCard } from './card-badges';
 import { useOpenCard } from './card-detail-modal';
 import type { DragData } from './dnd';
 
 const CARD_CLASS = 'relative rounded-lg bg-white p-3 text-sm text-ink shadow-sm outline-none';
 
-export function CardItem({ card, canEdit, actions }: { card: Card; canEdit: boolean; actions: BoardActions }) {
+/** `canDrag`: tắt kéo thả riêng (vd đang lọc thẻ — vị trí hiển thị không khớp vị trí thật). */
+export function CardItem({
+  card,
+  canEdit,
+  canDrag = canEdit,
+  actions,
+}: {
+  card: Card;
+  canEdit: boolean;
+  canDrag?: boolean;
+  actions: BoardActions;
+}) {
   const [editing, setEditing] = useState(false);
   const openCard = useOpenCard();
+  const resolved = useResolvedCard(card);
+  const summary = describeCard(card, resolved.labels, resolved.members);
   const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: card.id,
     data: { type: 'card', listId: card.listId, title: card.title } satisfies DragData,
-    disabled: !canEdit || editing,
+    disabled: !canDrag || editing,
   });
   const style = { transform: CSS.Translate.toString(transform), transition };
 
@@ -44,7 +58,7 @@ export function CardItem({ card, canEdit, actions }: { card: Card; canEdit: bool
         {...listeners}
         role="button"
         tabIndex={0}
-        aria-label={`Thẻ "${card.title}". Enter để mở${canEdit ? ', Space để kéo' : ''}`}
+        aria-label={`Thẻ "${card.title}". ${summary ? `${summary}. ` : ''}Enter để mở${canDrag ? ', Space để kéo' : ''}`}
         onClick={() => openCard(card.id)}
         onKeyDown={(e) => {
           listeners?.onKeyDown?.(e); // Space: bắt đầu kéo bằng bàn phím
@@ -58,7 +72,7 @@ export function CardItem({ card, canEdit, actions }: { card: Card; canEdit: bool
           'cursor-pointer transition-shadow hover:shadow-md hover:ring-2 hover:ring-brand focus-visible:ring-2 focus-visible:ring-brand',
         )}
       >
-        <CardContent card={card} />
+        <CardFace card={card} />
       </article>
       {canEdit && (
         // Sửa nhanh tiêu đề ngay trên thẻ; bàn phím dùng modal (Enter) nên không cần nằm trong thứ tự Tab
@@ -77,24 +91,11 @@ export function CardItem({ card, canEdit, actions }: { card: Card; canEdit: bool
   );
 }
 
-function CardContent({ card }: { card: Card }) {
-  return (
-    <>
-      <p className="pr-6 wrap-break-word whitespace-pre-wrap">{card.title}</p>
-      {card.description && (
-        <span className="mt-2 flex text-ink-subtle" title="Thẻ có mô tả">
-          <AlignLeft size={16} />
-        </span>
-      )}
-    </>
-  );
-}
-
 /** Bản sao thẻ bay theo con trỏ khi kéo — nghiêng nhẹ như Trello. */
 export function CardPreview({ card }: { card: Card }) {
   return (
     <article className={cn(CARD_CLASS, 'w-62 rotate-3 cursor-grabbing shadow-xl ring-2 ring-brand/40')}>
-      <CardContent card={card} />
+      <CardFace card={card} />
     </article>
   );
 }

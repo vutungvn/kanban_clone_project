@@ -18,6 +18,7 @@ import { LayoutPanelLeft } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BoardDetail, Card, List } from '@/lib/boards-api';
 import type { BoardActions } from '@/lib/use-board';
+import { BoardLookupProvider } from './card-badges';
 import { CardPreview } from './card-item';
 import { AddListComposer } from './composers';
 import {
@@ -38,8 +39,18 @@ const listOfCard = (lists: List[], cardId: UniqueIdentifier) => lists.find((l) =
  * Trong lúc kéo: chỉ đổi thứ tự trên giao diện (previewLists).
  * Khi thả: gọi API với vị trí cuối cùng; lỗi thì useBoard tự hoàn tác.
  */
-export function BoardCanvas({ board, actions }: { board: BoardDetail; actions: BoardActions }) {
+export function BoardCanvas({
+  board,
+  actions,
+  filteredLists,
+}: {
+  board: BoardDetail;
+  actions: BoardActions;
+  /** Đang lọc thẻ: danh sách chỉ còn thẻ khớp — kéo thả thẻ tạm tắt (vị trí hiển thị không khớp vị trí thật) */
+  filteredLists: List[] | null;
+}) {
   const canEdit = board.role !== 'VIEWER';
+  const lookup = useMemo(() => ({ labels: board.labels, members: board.members }), [board.labels, board.members]);
   const [dragging, setDragging] = useState<Dragging>(null);
 
   // Luôn đọc thứ tự mới nhất trong các handler (state React chưa kịp render giữa các sự kiện kéo)
@@ -170,6 +181,7 @@ export function BoardCanvas({ board, actions }: { board: BoardDetail; actions: B
   const draggingList = dragging?.type === 'list' ? board.lists.find((l) => l.id === dragging.id) : undefined;
 
   return (
+    <BoardLookupProvider value={lookup}>
     <DndContext
       sensors={sensors}
       collisionDetection={collisionDetection}
@@ -184,8 +196,15 @@ export function BoardCanvas({ board, actions }: { board: BoardDetail; actions: B
       {/* Canvas: cuộn ngang; mỗi cột tự cuộn dọc. Kéo sát mép sẽ tự cuộn. */}
       <div className="flex min-h-0 flex-1 items-start gap-3 overflow-x-auto px-4 pt-3 pb-4">
         <SortableContext items={board.lists.map((l) => l.id)} strategy={horizontalListSortingStrategy}>
-          {board.lists.map((list) => (
-            <ListColumn key={list.id} list={list} canEdit={canEdit} actions={actions} />
+          {(filteredLists ?? board.lists).map((list) => (
+            <ListColumn
+              key={list.id}
+              list={list}
+              totalCards={filteredLists ? board.lists.find((l) => l.id === list.id)?.cards.length : undefined}
+              canEdit={canEdit}
+              canDragCards={canEdit && !filteredLists}
+              actions={actions}
+            />
           ))}
         </SortableContext>
 
@@ -208,6 +227,7 @@ export function BoardCanvas({ board, actions }: { board: BoardDetail; actions: B
         {draggingList && <ListPreview list={draggingList} />}
       </DragOverlay>
     </DndContext>
+    </BoardLookupProvider>
   );
 }
 

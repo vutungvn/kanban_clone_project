@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { ChevronLeft, X } from 'lucide-react';
 
 const VIEWPORT_MARGIN = 8;
 
@@ -47,9 +47,13 @@ export function Popover({
       setPos({ top, left });
     };
     update();
+    // Nội dung đổi chiều cao (vd chuyển màn trong popover) → canh lại để không tràn khỏi màn hình
+    const observer = new ResizeObserver(update);
+    if (ref.current) observer.observe(ref.current);
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
     return () => {
+      observer.disconnect();
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
     };
@@ -90,7 +94,8 @@ export function Popover({
       role="dialog"
       aria-label={label}
       style={{ width, top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? 'visible' : 'hidden' }}
-      className="fixed z-50 rounded-lg bg-white p-3 text-ink shadow-[0_8px_24px_rgba(9,30,66,0.2),0_0_1px_rgba(9,30,66,0.31)]"
+      // Cao hơn màn hình thì cuộn bên trong
+      className="fixed z-50 max-h-[calc(100vh-16px)] overflow-y-auto rounded-lg bg-white p-3 text-ink shadow-[0_8px_24px_rgba(9,30,66,0.2),0_0_1px_rgba(9,30,66,0.31)]"
     >
       {children}
     </div>,
@@ -98,10 +103,20 @@ export function Popover({
   );
 }
 
-/** Tiêu đề căn giữa + nút đóng — kiểu popover của Trello. */
-export function PopoverHeader({ title, onClose }: { title: string; onClose: () => void }) {
+/** Tiêu đề căn giữa + nút đóng — kiểu popover của Trello. `onBack`: thêm nút quay lại màn trước. */
+export function PopoverHeader({ title, onClose, onBack }: { title: string; onClose: () => void; onBack?: () => void }) {
   return (
     <div className="relative mb-3 flex items-center justify-center">
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Quay lại"
+          className="absolute left-0 rounded p-1 text-ink-subtle transition-colors hover:bg-surface-mid hover:text-ink"
+        >
+          <ChevronLeft size={16} />
+        </button>
+      )}
       <h2 className="text-sm font-semibold text-ink-subtle">{title}</h2>
       <button
         type="button"

@@ -1,6 +1,6 @@
 'use client';
 
-import { ListFilter, Lock, MoreHorizontal, SquareKanban, Trash2, UserPlus } from 'lucide-react';
+import { ListFilter, Lock, MoreHorizontal, SquareKanban, Trash2, UserPlus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Avatar, givenName } from '@/components/avatar';
@@ -11,17 +11,35 @@ import { toast } from '@/components/toast';
 import { errorMessage } from '@/lib/api';
 import type { BoardBackground } from '@/lib/board-backgrounds';
 import type { BoardDetail, BoardMember } from '@/lib/boards-api';
+import { EMPTY_FILTER, filterCount, type CardFilter } from '@/lib/card-filter';
+import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
+import { CardFilterPopoverContent } from './card-filter-popover';
 import { InlineTitle } from './inline-title';
 import { ShareBoardModal } from './share-board-modal';
 
 const ICON_BUTTON =
   'flex h-8 w-8 items-center justify-center rounded text-white/90 transition-colors hover:bg-white/15 hover:text-white aria-expanded:bg-white/20';
 
-export function BoardHeader({ board, actions }: { board: BoardDetail; actions: BoardActions }) {
+export function BoardHeader({
+  board,
+  actions,
+  filter,
+  matched,
+  onFilterChange,
+}: {
+  board: BoardDetail;
+  actions: BoardActions;
+  filter: CardFilter;
+  /** Số thẻ khớp bộ lọc (chỉ dùng khi đang lọc) */
+  matched: number;
+  onFilterChange: (filter: CardFilter) => void;
+}) {
   const isAdmin = board.role === 'ADMIN';
   const owner = board.members.find((m) => m.role === 'ADMIN') ?? board.members[0];
   const menu = usePopoverAnchor();
+  const filterMenu = usePopoverAnchor();
+  const filtering = filterCount(filter) > 0;
   const [sharing, setSharing] = useState(false);
 
   return (
@@ -63,9 +81,41 @@ export function BoardHeader({ board, actions }: { board: BoardDetail; actions: B
           <UserPlus size={18} />
           <span className="hidden sm:inline">Chia sẻ</span>
         </button>
-        <button type="button" disabled aria-label="Lọc thẻ (sắp có)" title="Lọc thẻ — Sắp có" className={`${ICON_BUTTON} cursor-not-allowed opacity-50`}>
-          <ListFilter size={19} />
-        </button>
+        {/* Luôn giữ cùng 1 nút mở popover (đổi kiểu khi đang lọc) để popover không mất chỗ neo */}
+        <div className={cn('flex h-8 items-center rounded', filtering && 'bg-white text-sm font-medium text-ink shadow-sm')}>
+          <button
+            type="button"
+            onClick={filterMenu.toggle}
+            aria-haspopup="dialog"
+            aria-expanded={!!filterMenu.anchor}
+            aria-label={filtering ? `Lọc thẻ: ${filterCount(filter)} điều kiện, ${matched} thẻ khớp` : 'Lọc thẻ'}
+            title="Lọc thẻ"
+            className={
+              filtering
+                ? 'flex h-full items-center gap-1.5 rounded-l pr-1.5 pl-2.5 transition-colors hover:bg-surface-low'
+                : ICON_BUTTON
+            }
+          >
+            <ListFilter size={filtering ? 18 : 19} />
+            {filtering && (
+              <>
+                <span className="rounded-full bg-brand px-1.5 text-[11px] font-semibold text-white">{filterCount(filter)}</span>
+                <span className="hidden whitespace-nowrap sm:inline">{matched} thẻ</span>
+              </>
+            )}
+          </button>
+          {filtering && (
+            <button
+              type="button"
+              onClick={() => onFilterChange(EMPTY_FILTER)}
+              aria-label="Xoá bộ lọc"
+              title="Xoá bộ lọc"
+              className="flex h-full items-center rounded-r border-l border-surface-high px-1.5 text-ink-subtle transition-colors hover:bg-surface-low hover:text-ink"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
         <button
           type="button"
           onClick={menu.toggle}
@@ -77,6 +127,10 @@ export function BoardHeader({ board, actions }: { board: BoardDetail; actions: B
           <MoreHorizontal size={20} />
         </button>
       </div>
+
+      <Popover anchor={filterMenu.anchor} onClose={filterMenu.close} label="Lọc thẻ" align="end" width={340}>
+        <CardFilterPopoverContent board={board} filter={filter} onChange={onFilterChange} onClose={filterMenu.close} />
+      </Popover>
 
       <Popover anchor={menu.anchor} onClose={menu.close} label="Menu bảng" align="end" width={320}>
         <BoardMenuContent board={board} actions={actions} onClose={menu.close} />

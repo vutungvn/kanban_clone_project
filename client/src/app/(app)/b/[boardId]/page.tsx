@@ -3,11 +3,12 @@
 import { LoaderCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BoardCanvas } from '@/components/board/board-canvas';
 import { BoardHeader } from '@/components/board/board-header';
 import { CardDetailModal, useCardParam } from '@/components/board/card-detail-modal';
 import { backgroundClass } from '@/lib/board-backgrounds';
+import { EMPTY_FILTER, filterCount, filterLists } from '@/lib/card-filter';
 import { cn } from '@/lib/cn';
 import { useBoard } from '@/lib/use-board';
 
@@ -15,6 +16,12 @@ export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const { board, status, error, actions } = useBoard(boardId);
   const cardParam = useCardParam();
+  const [filter, setFilter] = useState(EMPTY_FILTER);
+  // Đang lọc: danh sách chỉ còn thẻ khớp (null = không lọc)
+  const filtered = useMemo(() => (board && filterCount(filter) > 0 ? filterLists(board, filter) : null), [board, filter]);
+
+  // Sang bảng khác → bỏ lọc (nhãn / thành viên của bảng cũ không còn ý nghĩa)
+  useEffect(() => setFilter(EMPTY_FILTER), [boardId]);
 
   useEffect(() => {
     if (board) document.title = `${board.title} | Kanban`;
@@ -44,8 +51,8 @@ export default function BoardPage() {
 
   return (
     <div className={cn('flex h-[calc(100vh-3rem)] flex-col bg-linear-to-br', backgroundClass(board.background))}>
-      <BoardHeader board={board} actions={actions} />
-      <BoardCanvas board={board} actions={actions} />
+      <BoardHeader board={board} actions={actions} filter={filter} matched={filtered?.matched ?? 0} onFilterChange={setFilter} />
+      <BoardCanvas board={board} actions={actions} filteredLists={filtered?.lists ?? null} />
       {cardParam.cardId && (
         <CardDetailModal key={cardParam.cardId} board={board} cardId={cardParam.cardId} actions={actions} onClose={cardParam.close} />
       )}

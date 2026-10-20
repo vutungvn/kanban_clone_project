@@ -10,22 +10,16 @@ import {
   ImageIcon,
   MessagesSquare,
   Paperclip,
+  Plus,
   SquareCheck,
   Tag,
   Trash2,
+  UserPlus,
   UserRound,
   type LucideIcon,
 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type MouseEvent,
-  type RefObject,
-} from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { Avatar } from '@/components/avatar';
 import { Modal, ModalCloseButton } from '@/components/modal';
@@ -35,13 +29,16 @@ import { ComingSoonBadge } from '@/components/ui';
 import type { BoardDetail, Card, List } from '@/lib/boards-api';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
+import { resolveCard } from './card-badges';
+import { AddChecklistPopoverContent, ChecklistSection } from './card-checklists';
+import { CardDatesField, DatesPopoverContent } from './card-dates';
+import { LabelsPopoverContent } from './card-labels';
+import { MembersPopoverContent } from './card-members';
+import { LabelChip, PRIMARY_BUTTON, SECONDARY_BUTTON, SectionHeading, useAutosize } from './card-ui';
 
 const MAX_TITLE = 500;
 const MAX_DESCRIPTION = 10_000;
 
-const PRIMARY_BUTTON =
-  'h-8 rounded bg-brand px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-hover';
-const SECONDARY_BUTTON = 'h-8 rounded bg-surface-mid px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-high';
 const SIDEBAR_BUTTON =
   'flex w-full items-center gap-2.5 rounded bg-surface-low px-3 py-2 text-left text-sm font-medium text-ink transition-colors hover:bg-surface-mid aria-expanded:bg-surface-high disabled:cursor-not-allowed disabled:text-ink/50 disabled:hover:bg-surface-low';
 const SELECT_CLASS =
@@ -147,8 +144,15 @@ function CardModal({
   onClose: () => void;
 }) {
   const canEdit = board.role !== 'VIEWER';
+  const meId = useAuth().user?.id;
   const move = usePopoverAnchor();
   const remove = usePopoverAnchor();
+  const membersPop = usePopoverAnchor();
+  const labelsPop = usePopoverAnchor();
+  const datesPop = usePopoverAnchor();
+  const checklistPop = usePopoverAnchor();
+  // Gợi ý "Tham gia" khi mình chưa được giao thẻ này
+  const canJoin = canEdit && !!meId && board.members.some((m) => m.id === meId) && !card.memberIds.includes(meId);
 
   return (
     <Modal label={`Thẻ ${card.title}`} onClose={onClose} className="max-w-192">
@@ -180,25 +184,40 @@ function CardModal({
 
       <div className={cn('grid grid-cols-1 gap-6 px-6 pt-2 pb-8', canEdit && 'md:grid-cols-[1fr_200px]')}>
         <div className="flex min-w-0 flex-col gap-6">
+          <CardMeta
+            board={board}
+            card={card}
+            canEdit={canEdit}
+            membersPop={membersPop}
+            labelsPop={labelsPop}
+            datesPop={datesPop}
+            onToggleComplete={(dueComplete) => void actions.updateCard(card.id, { dueComplete })}
+          />
           <Description card={card} canEdit={canEdit} onSave={(description) => void actions.updateCard(card.id, { description })} />
+          {card.checklists.map((checklist) => (
+            <ChecklistSection key={checklist.id} checklist={checklist} canEdit={canEdit} actions={actions} />
+          ))}
           <Activity card={card} />
         </div>
 
         {canEdit && (
           <aside className="flex flex-col gap-6">
+            {canJoin && (
+              <SidebarGroup title="Gợi ý">
+                <button type="button" onClick={() => void actions.setCardMember(card.id, meId!, true)} className={SIDEBAR_BUTTON}>
+                  <UserPlus size={18} className="text-ink-subtle" />
+                  Tham gia
+                </button>
+              </SidebarGroup>
+            )}
+
             <SidebarGroup title="Thêm vào thẻ">
-              {(
-                [
-                  ['Thành viên', UserRound],
-                  ['Nhãn', Tag],
-                  ['Việc cần làm', SquareCheck],
-                  ['Ngày', Calendar],
-                  ['Đính kèm', Paperclip],
-                  ['Ảnh bìa', ImageIcon],
-                ] as const
-              ).map(([label, icon]) => (
-                <UpcomingButton key={label} label={label} icon={icon} />
-              ))}
+              <SidebarButton icon={UserRound} label="Thành viên" onClick={membersPop.toggle} expanded={!!membersPop.anchor} />
+              <SidebarButton icon={Tag} label="Nhãn" onClick={labelsPop.toggle} expanded={!!labelsPop.anchor} />
+              <SidebarButton icon={SquareCheck} label="Việc cần làm" onClick={checklistPop.toggle} expanded={!!checklistPop.anchor} />
+              <SidebarButton icon={Calendar} label="Ngày" onClick={datesPop.toggle} expanded={!!datesPop.anchor} />
+              <UpcomingButton label="Đính kèm" icon={Paperclip} />
+              <UpcomingButton label="Ảnh bìa" icon={ImageIcon} />
             </SidebarGroup>
 
             <SidebarGroup title="Thao tác">
@@ -219,6 +238,22 @@ function CardModal({
           </aside>
         )}
       </div>
+
+      <Popover anchor={membersPop.anchor} onClose={membersPop.close} label="Thành viên của thẻ">
+        <MembersPopoverContent board={board} card={card} actions={actions} onClose={membersPop.close} />
+      </Popover>
+
+      <Popover anchor={labelsPop.anchor} onClose={labelsPop.close} label="Nhãn của thẻ">
+        <LabelsPopoverContent board={board} card={card} actions={actions} onClose={labelsPop.close} />
+      </Popover>
+
+      <Popover anchor={datesPop.anchor} onClose={datesPop.close} label="Ngày của thẻ" width={320}>
+        <DatesPopoverContent card={card} onSave={(input) => void actions.updateCard(card.id, input)} onClose={datesPop.close} />
+      </Popover>
+
+      <Popover anchor={checklistPop.anchor} onClose={checklistPop.close} label="Thêm checklist">
+        <AddChecklistPopoverContent onAdd={(title) => actions.addChecklist(card.id, title)} onClose={checklistPop.close} />
+      </Popover>
 
       <Popover anchor={move.anchor} onClose={move.close} label="Di chuyển thẻ">
         <MoveCardContent
@@ -254,16 +289,6 @@ function CardModal({
 }
 
 // ---------- Tiêu đề ----------
-
-/** Ô nhập tự cao theo nội dung. */
-function useAutosize(ref: RefObject<HTMLTextAreaElement | null>, value: string) {
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [ref, value]);
-}
 
 /** Bấm vào để sửa. Enter / bấm ra ngoài = lưu, Esc = huỷ (không đóng modal). */
 function CardTitle({ card, canEdit, onSave }: { card: Card; canEdit: boolean; onSave: (title: string) => void }) {
@@ -312,15 +337,97 @@ function CardTitle({ card, canEdit, onSave }: { card: Card; canEdit: boolean; on
 
 // ---------- Mô tả ----------
 
-function SectionHeading({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children?: React.ReactNode }) {
+type PopoverControl = ReturnType<typeof usePopoverAnchor>;
+
+/** Hàng thông tin dưới tiêu đề: thành viên, nhãn, ngày — chỉ hiện nhóm đã có dữ liệu. */
+function CardMeta({
+  board,
+  card,
+  canEdit,
+  membersPop,
+  labelsPop,
+  datesPop,
+  onToggleComplete,
+}: {
+  board: BoardDetail;
+  card: Card;
+  canEdit: boolean;
+  membersPop: PopoverControl;
+  labelsPop: PopoverControl;
+  datesPop: PopoverControl;
+  onToggleComplete: (complete: boolean) => void;
+}) {
+  const { labels, members } = resolveCard(card, board.labels, board.members);
+  const hasDates = !!card.startDate || !!card.dueDate;
+  if (!members.length && !labels.length && !hasDates) return null;
+
   return (
-    <div className="flex min-h-8 items-center justify-between gap-2">
-      <div className="flex items-center gap-2.5">
-        <Icon size={22} className="text-ink-subtle" aria-hidden />
-        <h3 className="text-base font-semibold">{title}</h3>
-      </div>
-      {children}
+    <div className="flex flex-wrap gap-x-6 gap-y-4 pl-8">
+      {members.length > 0 && (
+        <MetaGroup title="Thành viên">
+          {members.map((m) => (
+            <Avatar key={m.id} name={m.name} seed={m.id} size={32} />
+          ))}
+          {canEdit && <AddMetaButton label="Thêm thành viên" control={membersPop} />}
+        </MetaGroup>
+      )}
+      {labels.length > 0 && (
+        <MetaGroup title="Nhãn">
+          {labels.map((l) =>
+            canEdit ? (
+              <button
+                key={l.id}
+                type="button"
+                onClick={labelsPop.toggle}
+                aria-haspopup="dialog"
+                className="max-w-48 rounded transition-opacity hover:opacity-85"
+              >
+                <LabelChip label={l} className="w-full" />
+              </button>
+            ) : (
+              <LabelChip key={l.id} label={l} className="max-w-48" />
+            ),
+          )}
+          {canEdit && <AddMetaButton label="Thêm nhãn" control={labelsPop} />}
+        </MetaGroup>
+      )}
+      {hasDates && (
+        <MetaGroup title={card.dueDate ? 'Ngày hết hạn' : 'Ngày bắt đầu'}>
+          <CardDatesField
+            card={card}
+            canEdit={canEdit}
+            expanded={!!datesPop.anchor}
+            onOpen={datesPop.toggle}
+            onToggleComplete={onToggleComplete}
+          />
+        </MetaGroup>
+      )}
     </div>
+  );
+}
+
+function MetaGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <h3 className="text-xs font-semibold text-ink-subtle">{title}</h3>
+      <div className="flex flex-wrap items-center gap-1">{children}</div>
+    </div>
+  );
+}
+
+function AddMetaButton({ label, control }: { label: string; control: PopoverControl }) {
+  return (
+    <button
+      type="button"
+      onClick={control.toggle}
+      aria-haspopup="dialog"
+      aria-expanded={!!control.anchor}
+      aria-label={label}
+      title={label}
+      className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-low text-ink-subtle transition-colors hover:bg-surface-mid hover:text-ink aria-expanded:bg-surface-high"
+    >
+      <Plus size={16} />
+    </button>
   );
 }
 
@@ -471,7 +578,7 @@ function Activity({ card }: { card: Card }) {
 
 // ---------- Cột thao tác ----------
 
-function SidebarGroup({ title, children }: { title: string; children: React.ReactNode }) {
+function SidebarGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
       <h3 className="mb-1 text-[11px] font-semibold tracking-wider text-ink-subtle uppercase">{title}</h3>
