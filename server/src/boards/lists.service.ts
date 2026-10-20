@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BoardAccessService } from './board-access.service';
 import { POSITION_GAP } from './boards.constants';
 import type { CreateListDto, MoveListDto, UpdateListDto } from './dto/list.dto';
+import { byPosition, listInclude, toList } from './card-shape';
 import { placeAt } from './position';
 
 export const LIST_NOT_FOUND = 'Không tìm thấy danh sách';
@@ -27,11 +28,8 @@ export class ListsService {
 
   async update(listId: string, userId: string, dto: UpdateListDto) {
     await this.requireEditable(listId, userId);
-    return this.prisma.list.update({
-      where: { id: listId },
-      data: { title: dto.title },
-      include: { cards: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] } },
-    });
+    const list = await this.prisma.list.update({ where: { id: listId }, data: { title: dto.title }, include: listInclude });
+    return toList(list);
   }
 
   /** Kéo thả: chuyển danh sách tới vị trí `index` trong bảng. */
@@ -40,7 +38,7 @@ export class ListsService {
     return this.prisma.$transaction(async (tx) => {
       const siblings = await tx.list.findMany({
         where: { boardId, NOT: { id: listId } },
-        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        orderBy: byPosition,
         select: { id: true, position: true },
       });
       const { position, rebalanced } = placeAt(siblings, dto.index, listId);
@@ -49,11 +47,7 @@ export class ListsService {
           await tx.list.update({ where: { id: item.id }, data: { position: item.position } });
         }
       }
-      return tx.list.update({
-        where: { id: listId },
-        data: { position },
-        include: { cards: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] } },
-      });
+      return toList(await tx.list.update({ where: { id: listId }, data: { position }, include: listInclude }));
     });
   }
 

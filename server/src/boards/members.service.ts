@@ -51,7 +51,7 @@ export class MembersService {
     });
   }
 
-  /** ADMIN xoá người khác; ai cũng tự rời bảng được (trừ ADMIN cuối cùng). */
+  /** ADMIN xoá người khác; ai cũng tự rời bảng được (trừ ADMIN cuối cùng). Người bị xoá được gỡ khỏi mọi thẻ. */
   remove(boardId: string, actorId: string, userId: string) {
     const self = userId === actorId;
     return this.access.withLock(boardId, actorId, self ? BoardRole.VIEWER : BoardRole.ADMIN, async (tx, me) => {
@@ -60,6 +60,8 @@ export class MembersService {
       if (target.role === BoardRole.ADMIN) await this.ensureOtherAdmin(tx, target, self ? LAST_ADMIN_LEAVE : LAST_ADMIN);
 
       await tx.boardMember.delete({ where: { boardId_userId: { boardId, userId } } });
+      // Không còn trong bảng → gỡ khỏi mọi thẻ của bảng
+      await tx.cardMember.deleteMany({ where: { userId, card: { list: { boardId } } } });
     });
   }
 

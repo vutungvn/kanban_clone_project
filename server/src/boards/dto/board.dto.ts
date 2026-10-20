@@ -4,6 +4,7 @@ import { Transform } from 'class-transformer';
 import { IsBoolean, IsIn, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { trimString } from '../../common/transforms';
 import { BOARD_BACKGROUNDS, MAX_BOARD_TITLE, type BoardBackground } from '../boards.constants';
+import { LabelDto } from './label.dto';
 import { ListDto } from './list.dto';
 
 // ===== Request =====
@@ -84,6 +85,9 @@ export class BoardSummaryDto {
 export class BoardDetailDto extends BoardSummaryDto {
   @ApiProperty({ type: String, format: 'date-time', example: '2026-01-15T08:30:00.000Z' })
   updatedAt: Date;
+
+  @ApiProperty({ type: [LabelDto], description: 'Nhãn của bảng, theo thứ tự tạo' })
+  labels: LabelDto[];
 
   @ApiProperty({ type: [ListDto], description: 'Các danh sách kèm thẻ, đã sắp theo position' })
   lists: ListDto[];

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, HttpCode, HttpStatus, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import {
   ApiCreatedResponse,
   ApiNoContentResponse,
@@ -11,7 +11,7 @@ import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiAuth, ApiForbidden, ApiNotFound, ApiValidationError } from '../common/swagger/api-responses';
-import { CARD_NOT_FOUND, CardsService } from './cards.service';
+import { CARD_NOT_FOUND, CardsService, LABEL_NOT_FOUND, NO_DUE_DATE, NOT_BOARD_MEMBER, START_AFTER_DUE } from './cards.service';
 import { CardResponseDto, CreateCardDto, MoveCardDto, UpdateCardDto } from './dto/card.dto';
 import { LIST_NOT_FOUND } from './lists.service';
 
@@ -35,10 +35,15 @@ export class CardsController {
     return { card: await this.cards.create(listId, user.id, dto) };
   }
 
-  @ApiOperation({ summary: 'Sửa thẻ', description: 'Đổi tiêu đề và/hoặc mô tả. Chỉ gửi trường cần đổi.' })
+  @ApiOperation({
+    summary: 'Sửa thẻ',
+    description:
+      'Đổi tiêu đề, mô tả, ngày bắt đầu, hạn chót, trạng thái hoàn thành. Chỉ gửi trường cần đổi; `null` = xoá ngày. ' +
+      'Ngày bắt đầu phải trước hoặc bằng hạn chót (so cả với giá trị đang lưu). Xoá hạn chót thì `dueComplete` về false.',
+  })
   @ApiParam({ name: 'id', description: 'ID thẻ' })
   @ApiOkResponse({ type: CardResponseDto })
-  @ApiValidationError(['Tiêu đề thẻ tối đa 500 ký tự'])
+  @ApiValidationError(['Tiêu đề thẻ tối đa 500 ký tự', 'Hạn chót không hợp lệ', START_AFTER_DUE, NO_DUE_DATE])
   @ApiForbidden(VIEWER_FORBIDDEN)
   @ApiNotFound(CARD_NOT_FOUND)
   @Patch('cards/:id')
@@ -71,5 +76,56 @@ export class CardsController {
   @Delete('cards/:id')
   async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     await this.cards.remove(id, user.id);
+  }
+
+  @ApiOperation({ summary: 'Gắn nhãn vào thẻ', description: 'Nhãn phải thuộc cùng bảng. Đã gắn rồi thì không làm gì.' })
+  @ApiParam({ name: 'id', description: 'ID thẻ' })
+  @ApiParam({ name: 'labelId', description: 'ID nhãn' })
+  @ApiNoContentResponse({ description: 'Đã gắn' })
+  @ApiForbidden(VIEWER_FORBIDDEN)
+  @ApiNotFound(LABEL_NOT_FOUND, 'Thẻ / nhãn không tồn tại, nhãn thuộc bảng khác, hoặc bạn không phải thành viên')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Put('cards/:id/labels/:labelId')
+  async addLabel(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('labelId') labelId: string) {
+    await this.cards.addLabel(id, user.id, labelId);
+  }
+
+  @ApiOperation({ summary: 'Gỡ nhãn khỏi thẻ', description: 'Chưa gắn thì không làm gì.' })
+  @ApiParam({ name: 'id', description: 'ID thẻ' })
+  @ApiParam({ name: 'labelId', description: 'ID nhãn' })
+  @ApiNoContentResponse({ description: 'Đã gỡ' })
+  @ApiForbidden(VIEWER_FORBIDDEN)
+  @ApiNotFound(CARD_NOT_FOUND)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Delete('cards/:id/labels/:labelId')
+  async removeLabel(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('labelId') labelId: string) {
+    await this.cards.removeLabel(id, user.id, labelId);
+  }
+
+  @ApiOperation({
+    summary: 'Giao thẻ cho thành viên',
+    description: 'Người được giao phải là thành viên của bảng (mọi vai trò). Đã giao rồi thì không làm gì.',
+  })
+  @ApiParam({ name: 'id', description: 'ID thẻ' })
+  @ApiParam({ name: 'userId', description: 'ID người được giao' })
+  @ApiNoContentResponse({ description: 'Đã giao' })
+  @ApiForbidden(VIEWER_FORBIDDEN)
+  @ApiNotFound(NOT_BOARD_MEMBER, 'Thẻ không tồn tại, người được giao không ở trong bảng, hoặc bạn không phải thành viên')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Put('cards/:id/members/:userId')
+  async addMember(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('userId') userId: string) {
+    await this.cards.addMember(id, user.id, userId);
+  }
+
+  @ApiOperation({ summary: 'Bỏ giao thẻ', description: 'Chưa được giao thì không làm gì.' })
+  @ApiParam({ name: 'id', description: 'ID thẻ' })
+  @ApiParam({ name: 'userId', description: 'ID người được giao' })
+  @ApiNoContentResponse({ description: 'Đã bỏ giao' })
+  @ApiForbidden(VIEWER_FORBIDDEN)
+  @ApiNotFound(CARD_NOT_FOUND)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Delete('cards/:id/members/:userId')
+  async removeMember(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('userId') userId: string) {
+    await this.cards.removeMember(id, user.id, userId);
   }
 }

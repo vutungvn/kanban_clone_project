@@ -19,6 +19,7 @@ model User {
   ownedBoards  Board[]
   memberships  BoardMember[]
   joinRequests BoardJoinRequest[]
+  cardMembers  CardMember[]
 
   @@map("users")
 }
@@ -56,6 +57,7 @@ model Board {
   members                BoardMember[]
   joinRequests           BoardJoinRequest[]
   lists                  List[]
+  labels                 Label[]
 
   @@index([ownerId])
   @@map("boards")
@@ -112,15 +114,90 @@ model List {
 }
 
 model Card {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   listId      String
   title       String
   description String?
   position    Float
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  list        List     @relation(fields: [listId], references: [id], onDelete: Cascade)
+  // Ngày bắt đầu / hạn chót (đều tuỳ chọn). Nếu có cả hai thì startDate <= dueDate.
+  startDate   DateTime?
+  dueDate     DateTime?
+  // Đánh dấu đã hoàn thành hạn chót — xoá hạn chót thì tự về false
+  dueComplete Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  labels      CardLabel[]
+  members     CardMember[]
+  checklists  Checklist[]
 
   @@index([listId, position])
   @@map("cards")
+}
+
+// Nhãn thuộc về bảng; thẻ gắn nhãn qua CardLabel. Tên có thể rỗng (nhãn chỉ có màu).
+model Label {
+  id        String      @id @default(cuid())
+  boardId   String
+  name      String      @default("")
+  // Key màu dựng sẵn — xem LABEL_COLORS trong src/boards/boards.constants.ts
+  color     String
+  createdAt DateTime    @default(now())
+  board     Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards     CardLabel[]
+
+  @@index([boardId])
+  @@map("labels")
+}
+
+model CardLabel {
+  cardId  String
+  labelId String
+  card    Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+  @@index([labelId])
+  @@map("card_labels")
+}
+
+// Thành viên được giao thẻ — phải là thành viên của bảng; rời / bị xoá khỏi bảng thì bị gỡ khỏi mọi thẻ.
+model CardMember {
+  cardId    String
+  userId    String
+  createdAt DateTime @default(now())
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, userId])
+  @@index([userId])
+  @@map("card_members")
+}
+
+model Checklist {
+  id        String          @id @default(cuid())
+  cardId    String
+  title     String
+  position  Float
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  card      Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  items     ChecklistItem[]
+
+  @@index([cardId, position])
+  @@map("checklists")
+}
+
+model ChecklistItem {
+  id          String    @id @default(cuid())
+  checklistId String
+  title       String
+  completed   Boolean   @default(false)
+  position    Float
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  checklist   Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@index([checklistId, position])
+  @@map("checklist_items")
 }

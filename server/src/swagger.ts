@@ -35,7 +35,7 @@ Mặc định 100 request/phút/IP; \`/auth/register\` và \`/auth/login\` giớ
 | Vai trò | Được làm |
 | --- | --- |
 | \`ADMIN\` | Mọi quyền của MEMBER + đổi tên / phông nền, xoá bảng, mời / đổi vai trò / xoá thành viên (người tạo bảng là ADMIN) |
-| \`MEMBER\` | Thêm, sửa, xoá danh sách và thẻ |
+| \`MEMBER\` | Thêm, sửa, xoá danh sách, thẻ, nhãn, checklist; gắn nhãn, giao thẻ, đặt ngày |
 | \`VIEWER\` | Chỉ xem (vẫn đánh dấu sao được — sao là của riêng từng người) |
 
 Mọi vai trò đều tự rời bảng được. Bảng luôn phải còn ít nhất 1 ADMIN.
@@ -60,7 +60,9 @@ export function setupSwagger(app: INestApplication) {
     .addTag('Members', 'Thành viên của bảng: mời, đổi vai trò, xoá / rời bảng')
     .addTag('Invites', 'Liên kết mời vào bảng và yêu cầu tham gia')
     .addTag('Lists', 'Danh sách (cột) trong bảng')
-    .addTag('Cards', 'Thẻ công việc trong danh sách')
+    .addTag('Cards', 'Thẻ công việc trong danh sách: nội dung, ngày, gắn nhãn, giao thành viên')
+    .addTag('Labels', 'Nhãn của bảng (dùng chung cho mọi thẻ)')
+    .addTag('Checklists', 'Checklist trong thẻ và các mục của nó')
     .build();
 
   // Path trong document không chứa prefix "/api" vì đã khai báo ở servers

@@ -1,9 +1,10 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsISO8601, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { blankToNull, trimString } from '../../common/transforms';
 import { MAX_CARD_DESCRIPTION, MAX_CARD_TITLE } from '../boards.constants';
+import { ChecklistDto } from './checklist.dto';
 
 const CardTitleRules = () =>
   applyDecorators(
@@ -37,6 +38,35 @@ export class UpdateCardDto {
   @IsString()
   @MaxLength(MAX_CARD_DESCRIPTION, { message: `Mô tả tối đa ${MAX_CARD_DESCRIPTION} ký tự` })
   description?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    example: '2026-10-20T00:00:00.000Z',
+    description: 'Ngày bắt đầu (ISO 8601). Gửi `null` để xoá. Phải trước hoặc bằng hạn chót',
+  })
+  @Transform(blankToNull)
+  @IsOptional()
+  @IsISO8601({ strict: true }, { message: 'Ngày bắt đầu không hợp lệ' })
+  startDate?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    example: '2026-10-25T10:00:00.000Z',
+    description: 'Hạn chót (ISO 8601). Gửi `null` để xoá — `dueComplete` cũng tự về false',
+  })
+  @Transform(blankToNull)
+  @IsOptional()
+  @IsISO8601({ strict: true }, { message: 'Hạn chót không hợp lệ' })
+  dueDate?: string | null;
+
+  @ApiPropertyOptional({ example: true, description: 'Đánh dấu hoàn thành hạn chót (cần thẻ có hạn chót)' })
+  @IsOptional()
+  @IsBoolean({ message: 'dueComplete phải là true hoặc false' })
+  dueComplete?: boolean;
 }
 
 export class MoveCardDto {
@@ -70,6 +100,24 @@ export class CardDto {
 
   @ApiProperty({ example: 1024, description: 'Thứ tự trong danh sách (tăng dần)' })
   position: number;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true, example: null })
+  startDate: Date | null;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true, example: '2026-10-25T10:00:00.000Z' })
+  dueDate: Date | null;
+
+  @ApiProperty({ example: false })
+  dueComplete: boolean;
+
+  @ApiProperty({ type: [String], example: ['cmglabel0000vq8h3b1c2d4e'], description: 'ID nhãn — chi tiết nằm ở `board.labels`' })
+  labelIds: string[];
+
+  @ApiProperty({ type: [String], example: ['cmg9x2k7a0000vq8h3b1c2d4e'], description: 'ID thành viên được giao — chi tiết nằm ở `board.members`' })
+  memberIds: string[];
+
+  @ApiProperty({ type: () => [ChecklistDto], description: 'Các checklist kèm mục, đã sắp theo position' })
+  checklists: ChecklistDto[];
 
   @ApiProperty({ type: String, format: 'date-time', example: '2026-01-15T08:30:00.000Z' })
   createdAt: Date;

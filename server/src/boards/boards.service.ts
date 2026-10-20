@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { BoardMember, BoardRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BOARD_NOT_FOUND, BoardAccessService } from './board-access.service';
+import { DEFAULT_LABEL_COLORS } from './boards.constants';
+import { byPosition, listInclude, toList } from './card-shape';
 import type { CreateBoardDto, UpdateBoardDto } from './dto/board.dto';
 
 export const memberUserSelect = { id: true, name: true, email: true, avatarUrl: true } as const satisfies Prisma.UserSelect;
@@ -18,14 +20,10 @@ const withMembers = {
   },
 } as const satisfies Prisma.BoardInclude;
 
-const byPosition = [{ position: 'asc' }, { createdAt: 'asc' }] as const satisfies Prisma.ListOrderByWithRelationInput[];
-
 const withListsAndCards = {
   ...withMembers,
-  lists: {
-    orderBy: byPosition,
-    include: { cards: { orderBy: byPosition } },
-  },
+  labels: { orderBy: { createdAt: 'asc' } },
+  lists: { orderBy: byPosition, include: listInclude },
 } as const satisfies Prisma.BoardInclude;
 
 type BoardWithMembers = Prisma.BoardGetPayload<{ include: typeof withMembers }>;
@@ -68,13 +66,17 @@ export class BoardsService {
         ownerId: userId,
         // Người tạo là quản trị viên của bảng
         members: { create: { userId, role: BoardRole.ADMIN } },
+        // createdAt lệch nhau 1ms để nhãn giữ đúng thứ tự màu
+        labels: {
+          create: DEFAULT_LABEL_COLORS.map((color, i) => ({ color, createdAt: new Date(Date.now() + i) })),
+        },
       },
       include: withMembers,
     });
     return toSummary(board, board.members[0]);
   }
 
-  /** Chi tiết bảng kèm list & card. Đồng thời ghi nhận "vừa xem" cho user. */
+  /** Chi tiết bảng kèm nhãn, list & card. Đồng thời ghi nhận "vừa xem" cho user. */
   async findOne(boardId: string, userId: string) {
     await this.access.require(boardId, userId);
     const me = await this.prisma.boardMember.update({
@@ -83,7 +85,7 @@ export class BoardsService {
     });
     const board = await this.prisma.board.findUnique({ where: { id: boardId }, include: withListsAndCards });
     if (!board) throw new NotFoundException(BOARD_NOT_FOUND);
-    return { ...toSummary(board, me), updatedAt: board.updatedAt, lists: board.lists };
+    return { ...toSummary(board, me), updatedAt: board.updatedAt, labels: board.labels, lists: board.lists.map(toList) };
   }
 
   async update(boardId: string, userId: string, dto: UpdateBoardDto) {
@@ -96,7 +98,7 @@ export class BoardsService {
     return toSummary(board, me);
   }
 
-  /** Xoá bảng — list, card, thành viên bị xoá theo (onDelete: Cascade). */
+  /** Xoá bảng — list, card, nhãn, thành viên bị xoá theo (onDelete: Cascade). */
   async remove(boardId: string, userId: string) {
     await this.access.require(boardId, userId, BoardRole.ADMIN);
     await this.prisma.board.delete({ where: { id: boardId } });
