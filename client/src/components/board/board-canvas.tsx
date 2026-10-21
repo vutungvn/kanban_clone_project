@@ -84,6 +84,7 @@ export function BoardCanvas({
 
   function onDragStart({ active }: DragStartEvent) {
     snapshot.current = listsRef.current;
+    actions.holdSync(true);
     const data = active.data.current as DragData;
     if (data.type === 'list') {
       setDragging({ type: 'list', id: String(active.id) });
@@ -125,7 +126,13 @@ export function BoardCanvas({
     );
   }
 
-  function onDragEnd({ active, over }: DragEndEvent) {
+  function onDragEnd(event: DragEndEvent) {
+    finishDrag(event);
+    // Request lưu vị trí đã được gửi → giờ mới áp thay đổi của người khác (nếu có)
+    actions.holdSync(false);
+  }
+
+  function finishDrag({ active, over }: DragEndEvent) {
     const rollback = snapshot.current;
     snapshot.current = null;
     setDragging(null);
@@ -166,6 +173,7 @@ export function BoardCanvas({
     if (snapshot.current) preview(snapshot.current);
     snapshot.current = null;
     setDragging(null);
+    actions.holdSync(false);
   }
 
   const announcements: Announcements = {

@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { BoardRole } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { BoardAccessService, lockBoard } from './board-access.service';
 import { memberUserSelect, toMember } from './boards.service';
 import type { ApproveJoinRequestDto, CreateInviteLinkDto, UpdateInviteLinkDto } from './dto/invite.dto';
@@ -30,6 +31,7 @@ export class InvitesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: BoardAccessService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   // ===== ADMIN quản lý liên kết =====
@@ -107,7 +109,7 @@ export class InvitesService {
     if (!found) throw new NotFoundException(INVITE_INVALID);
     const boardId = found.id;
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       await lockBoard(tx, boardId);
       // Đọc lại sau khi khoá: link có thể vừa bị tắt / tạo lại
       const board = await tx.board.findUnique({ where: { id: boardId }, select: linkSelect });
@@ -122,8 +124,11 @@ export class InvitesService {
       }
       await tx.boardMember.create({ data: { boardId, userId, role: board.inviteRole } });
       await tx.boardJoinRequest.deleteMany({ where: { boardId, userId } });
-      return { status: 'MEMBER', boardId } as const;
+      return { status: 'MEMBER', boardId, joined: true } as const;
     });
+    // Người mới vào bảng → ai đang mở bảng thấy ngay thành viên mới
+    if ('joined' in result) this.realtime.boardChanged(boardId);
+    return { status: result.status, boardId };
   }
 
   /** Người gửi tự huỷ yêu cầu của mình (không có yêu cầu cũng coi như xong). */
@@ -164,6 +169,7 @@ export class InvitesService {
       return toMember(member);
     }).then((member) => {
       if (!member) throw new ConflictException(ALREADY_MEMBER);
+      this.realtime.boardChanged(boardId);
       return member;
     });
   }

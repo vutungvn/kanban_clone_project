@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ActivityType, BoardRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { ActivitiesService } from './activities.service';
 import { BoardAccessService } from './board-access.service';
 import { POSITION_GAP } from './boards.constants';
@@ -26,6 +27,7 @@ export class ChecklistsService {
     private readonly prisma: PrismaService,
     private readonly access: BoardAccessService,
     private readonly activities: ActivitiesService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /** Thêm checklist vào cuối thẻ. */
@@ -36,7 +38,7 @@ export class ChecklistsService {
 
     const boardId = card.list.boardId;
     const { _max } = await this.prisma.checklist.aggregate({ where: { cardId }, _max: { position: true } });
-    return this.prisma.$transaction(async (tx) => {
+    const checklist = await this.prisma.$transaction(async (tx) => {
       const checklist = await tx.checklist.create({
         data: { cardId, title: dto.title, position: (_max.position ?? 0) + POSITION_GAP },
         include: { items: true },
@@ -44,15 +46,19 @@ export class ChecklistsService {
       await this.activities.log(tx, { boardId, cardId, userId, type: ActivityType.CHECKLIST_ADDED, data: { title: dto.title } });
       return checklist;
     });
+    this.realtime.boardChanged(boardId, cardId);
+    return checklist;
   }
 
   async update(checklistId: string, userId: string, dto: UpdateChecklistDto) {
-    await this.requireChecklist(checklistId, userId);
-    return this.prisma.checklist.update({
+    const { boardId, cardId } = await this.requireChecklist(checklistId, userId);
+    const checklist = await this.prisma.checklist.update({
       where: { id: checklistId },
       data: { title: dto.title },
       include: { items: { orderBy: byPosition } },
     });
+    this.realtime.boardChanged(boardId, cardId);
+    return checklist;
   }
 
   /** Xoá checklist và mọi mục bên trong. */
@@ -69,21 +75,24 @@ export class ChecklistsService {
         data: { title: checklist.title },
       });
     });
+    this.realtime.boardChanged(checklist.boardId, checklist.cardId);
   }
 
   /** Thêm mục vào cuối checklist. */
   async addItem(checklistId: string, userId: string, dto: CreateChecklistItemDto) {
-    await this.requireChecklist(checklistId, userId);
+    const { boardId, cardId } = await this.requireChecklist(checklistId, userId);
     const { _max } = await this.prisma.checklistItem.aggregate({ where: { checklistId }, _max: { position: true } });
-    return this.prisma.checklistItem.create({
+    const item = await this.prisma.checklistItem.create({
       data: { checklistId, title: dto.title, position: (_max.position ?? 0) + POSITION_GAP },
     });
+    this.realtime.boardChanged(boardId, cardId);
+    return item;
   }
 
   /** Đổi nội dung và/hoặc đánh dấu hoàn thành. */
   async updateItem(itemId: string, userId: string, dto: UpdateChecklistItemDto) {
     const current = await this.requireItem(itemId, userId);
-    return this.prisma.$transaction(async (tx) => {
+    const item = await this.prisma.$transaction(async (tx) => {
       const item = await tx.checklistItem.update({
         where: { id: itemId },
         data: { title: dto.title, completed: dto.completed },
@@ -99,11 +108,14 @@ export class ChecklistsService {
       }
       return item;
     });
+    this.realtime.boardChanged(current.boardId, current.cardId);
+    return item;
   }
 
   async removeItem(itemId: string, userId: string) {
-    await this.requireItem(itemId, userId);
+    const { boardId, cardId } = await this.requireItem(itemId, userId);
     await this.prisma.checklistItem.delete({ where: { id: itemId } });
+    this.realtime.boardChanged(boardId, cardId);
   }
 
   private async requireChecklist(checklistId: string, userId: string) {

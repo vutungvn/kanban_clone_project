@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { BoardRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { BoardAccessService } from './board-access.service';
 import { POSITION_GAP } from './boards.constants';
 import type { CreateListDto, MoveListDto, UpdateListDto } from './dto/list.dto';
@@ -14,6 +15,7 @@ export class ListsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: BoardAccessService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /** Thêm danh sách vào cuối bảng. */
@@ -23,19 +25,21 @@ export class ListsService {
     const list = await this.prisma.list.create({
       data: { boardId, title: dto.title, position: (_max.position ?? 0) + POSITION_GAP },
     });
+    this.realtime.boardChanged(boardId);
     return { ...list, cards: [] };
   }
 
   async update(listId: string, userId: string, dto: UpdateListDto) {
-    await this.requireEditable(listId, userId);
+    const boardId = await this.requireEditable(listId, userId);
     const list = await this.prisma.list.update({ where: { id: listId }, data: { title: dto.title }, include: listInclude });
+    this.realtime.boardChanged(boardId);
     return toList(list);
   }
 
   /** Kéo thả: chuyển danh sách tới vị trí `index` trong bảng. */
   async move(listId: string, userId: string, dto: MoveListDto) {
     const boardId = await this.requireEditable(listId, userId);
-    return this.prisma.$transaction(async (tx) => {
+    const list = await this.prisma.$transaction(async (tx) => {
       const siblings = await tx.list.findMany({
         where: { boardId, NOT: { id: listId } },
         orderBy: byPosition,
@@ -49,12 +53,15 @@ export class ListsService {
       }
       return toList(await tx.list.update({ where: { id: listId }, data: { position }, include: listInclude }));
     });
+    this.realtime.boardChanged(boardId);
+    return list;
   }
 
   /** Xoá danh sách và toàn bộ thẻ bên trong. */
   async remove(listId: string, userId: string) {
-    await this.requireEditable(listId, userId);
+    const boardId = await this.requireEditable(listId, userId);
     await this.prisma.list.delete({ where: { id: listId } });
+    this.realtime.boardChanged(boardId);
   }
 
   /** Kiểm tra quyền sửa danh sách, trả về boardId. */

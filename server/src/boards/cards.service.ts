@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ActivityType, BoardRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { ActivitiesService } from './activities.service';
 import { BoardAccessService } from './board-access.service';
 import { CARD_NOT_FOUND, POSITION_GAP } from './boards.constants';
@@ -30,6 +31,7 @@ export class CardsService {
     private readonly prisma: PrismaService,
     private readonly access: BoardAccessService,
     private readonly activities: ActivitiesService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /** Thêm thẻ vào cuối danh sách. */
@@ -39,7 +41,7 @@ export class CardsService {
     await this.access.require(list.boardId, userId, BoardRole.MEMBER, LIST_NOT_FOUND);
 
     const { _max } = await this.prisma.card.aggregate({ where: { listId }, _max: { position: true } });
-    return this.prisma.$transaction(async (tx) => {
+    const card = await this.prisma.$transaction(async (tx) => {
       const card = await tx.card.create({
         data: { listId, title: dto.title, position: (_max.position ?? 0) + POSITION_GAP },
         include: cardInclude,
@@ -53,6 +55,8 @@ export class CardsService {
       });
       return toCard(card);
     });
+    this.realtime.boardChanged(list.boardId, card.id);
+    return card;
   }
 
   /**
@@ -67,7 +71,7 @@ export class CardsService {
     if (dto.dueComplete && !dueDate) throw new BadRequestException(NO_DUE_DATE);
 
     const base = { boardId: current.boardId, cardId, userId };
-    return this.prisma.$transaction(async (tx) => {
+    const card = await this.prisma.$transaction(async (tx) => {
       const card = await tx.card.update({
         where: { id: cardId },
         data: {
@@ -96,6 +100,8 @@ export class CardsService {
       }
       return toCard(card);
     });
+    this.realtime.boardChanged(current.boardId, cardId);
+    return card;
   }
 
   /** Kéo thả: chuyển thẻ tới vị trí `index` của danh sách `listId` (cùng bảng). Sang danh sách khác thì ghi lịch sử. */
@@ -105,7 +111,7 @@ export class CardsService {
     // Chỉ cho chuyển trong cùng bảng; list của bảng khác coi như không tồn tại
     if (!target || target.boardId !== current.boardId) throw new NotFoundException(LIST_NOT_FOUND);
 
-    return this.prisma.$transaction(async (tx) => {
+    const card = await this.prisma.$transaction(async (tx) => {
       const siblings = await tx.card.findMany({
         where: { listId: dto.listId, NOT: { id: cardId } },
         orderBy: byPosition,
@@ -133,11 +139,14 @@ export class CardsService {
       }
       return toCard(card);
     });
+    this.realtime.boardChanged(current.boardId, cardId);
+    return card;
   }
 
   async remove(cardId: string, userId: string) {
-    await this.requireEditable(cardId, userId);
+    const { boardId } = await this.requireEditable(cardId, userId);
     await this.prisma.card.delete({ where: { id: cardId } });
+    this.realtime.boardChanged(boardId, cardId);
   }
 
   /** Gắn nhãn (của cùng bảng) vào thẻ. Đã gắn rồi thì bỏ qua. */
@@ -162,6 +171,7 @@ export class CardsService {
       if (isForeignKeyError(e)) throw new NotFoundException(LABEL_NOT_FOUND);
       throw e;
     }
+    this.realtime.boardChanged(boardId, cardId);
   }
 
   /** Gỡ nhãn khỏi thẻ. Chưa gắn thì bỏ qua. */
@@ -183,6 +193,7 @@ export class CardsService {
         data: { name: link.label.name, color: link.label.color },
       });
     });
+    this.realtime.boardChanged(boardId, cardId);
   }
 
   /**
@@ -213,6 +224,7 @@ export class CardsService {
         throw e;
       }
     });
+    this.realtime.boardChanged(boardId, cardId);
   }
 
   /** Bỏ giao thẻ. Chưa được giao thì bỏ qua. */
@@ -233,6 +245,7 @@ export class CardsService {
         data: { userId: memberId, name: link.user.name },
       });
     });
+    this.realtime.boardChanged(boardId, cardId);
   }
 
   /** Kiểm tra quyền sửa thẻ, trả về bảng / danh sách chứa thẻ + các giá trị cần so khi ghi lịch sử. */

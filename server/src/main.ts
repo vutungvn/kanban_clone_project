@@ -3,18 +3,20 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { requestContextMiddleware } from './realtime/request-context';
+import { SocketAdapter } from './realtime/socket.adapter';
 import { setupSwagger, SWAGGER_PATH } from './swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
 
+  const clientUrl = config.get('CLIENT_URL', 'http://localhost:3000');
   app.setGlobalPrefix('api');
   app.use(cookieParser());
-  app.enableCors({
-    origin: config.get('CLIENT_URL', 'http://localhost:3000'),
-    credentials: true,
-  });
+  app.use(requestContextMiddleware);
+  app.enableCors({ origin: clientUrl, credentials: true });
+  app.useWebSocketAdapter(new SocketAdapter(app, clientUrl));
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );

@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ActivityType, BoardRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { BoardAccessService } from './board-access.service';
 import { CARD_NOT_FOUND } from './boards.constants';
 import type { ListActivitiesQueryDto } from './dto/activity.dto';
@@ -34,6 +35,7 @@ export class ActivitiesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: BoardAccessService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   log(db: Db, input: ActivityInput) {
@@ -63,6 +65,7 @@ export class ActivitiesService {
       data: { boardId, cardId, userId, type: ActivityType.COMMENT, text },
       include: activityInclude,
     });
+    this.realtime.boardChanged(boardId, cardId);
     return toActivity(activity);
   }
 
@@ -75,6 +78,7 @@ export class ActivitiesService {
       data: { text, editedAt: new Date() },
       include: activityInclude,
     });
+    this.realtime.boardChanged(comment.boardId, comment.cardId);
     return toActivity(activity);
   }
 
@@ -83,6 +87,7 @@ export class ActivitiesService {
     const comment = await this.requireComment(id, userId, BoardRole.MEMBER);
     if (comment.userId !== userId && comment.role !== BoardRole.ADMIN) throw new ForbiddenException(CANNOT_DELETE_COMMENT);
     await this.prisma.activity.delete({ where: { id } });
+    this.realtime.boardChanged(comment.boardId, comment.cardId);
   }
 
   private async requireCard(cardId: string, userId: string, minRole: BoardRole) {
@@ -94,9 +99,12 @@ export class ActivitiesService {
 
   /** Bình luận + vai trò của người đang thao tác trong bảng. */
   private async requireComment(id: string, userId: string, minRole: BoardRole) {
-    const comment = await this.prisma.activity.findUnique({ where: { id }, select: { type: true, boardId: true, userId: true } });
+    const comment = await this.prisma.activity.findUnique({
+      where: { id },
+      select: { type: true, boardId: true, cardId: true, userId: true },
+    });
     if (!comment || comment.type !== ActivityType.COMMENT) throw new NotFoundException(COMMENT_NOT_FOUND);
     const me = await this.access.require(comment.boardId, userId, minRole, COMMENT_NOT_FOUND);
-    return { userId: comment.userId, role: me.role };
+    return { userId: comment.userId, boardId: comment.boardId, cardId: comment.cardId, role: me.role };
   }
 }

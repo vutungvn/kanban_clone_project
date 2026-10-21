@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { BoardMember, BoardRole, Prisma } from '@prisma/client';
+import { RealtimeService } from '../realtime/realtime.service';
 import { BoardAccessService } from './board-access.service';
 import { memberUserSelect, toMember } from './boards.service';
 import type { InviteMemberDto, UpdateMemberDto } from './dto/member.dto';
@@ -18,10 +19,13 @@ const withUser = { user: { select: memberUserSelect } } as const satisfies Prism
  */
 @Injectable()
 export class MembersService {
-  constructor(private readonly access: BoardAccessService) {}
+  constructor(
+    private readonly access: BoardAccessService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
-  invite(boardId: string, actorId: string, dto: InviteMemberDto) {
-    return this.access.withLock(boardId, actorId, BoardRole.ADMIN, async (tx) => {
+  async invite(boardId: string, actorId: string, dto: InviteMemberDto) {
+    const member = await this.access.withLock(boardId, actorId, BoardRole.ADMIN, async (tx) => {
       const user = await tx.user.findUnique({ where: { email: dto.email }, select: { id: true } });
       if (!user) throw new NotFoundException(USER_NOT_FOUND);
 
@@ -33,10 +37,13 @@ export class MembersService {
       await tx.boardJoinRequest.deleteMany({ where: { boardId, userId: user.id } });
       return toMember(member);
     });
+    this.realtime.boardChanged(boardId);
+    return member;
   }
 
-  updateRole(boardId: string, actorId: string, userId: string, dto: UpdateMemberDto) {
-    return this.access.withLock(boardId, actorId, BoardRole.ADMIN, async (tx) => {
+  /** Người bị đổi vai trò đang mở bảng sẽ tải lại → giao diện đổi theo quyền mới. */
+  async updateRole(boardId: string, actorId: string, userId: string, dto: UpdateMemberDto) {
+    const member = await this.access.withLock(boardId, actorId, BoardRole.ADMIN, async (tx) => {
       const target = await tx.boardMember.findUnique({ where: { boardId_userId: { boardId, userId } }, include: withUser });
       if (!target) throw new NotFoundException(MEMBER_NOT_FOUND);
       if (target.role === dto.role) return toMember(target);
@@ -49,12 +56,14 @@ export class MembersService {
       });
       return toMember(member);
     });
+    this.realtime.boardChanged(boardId);
+    return member;
   }
 
   /** ADMIN xoá người khác; ai cũng tự rời bảng được (trừ ADMIN cuối cùng). Người bị xoá được gỡ khỏi mọi thẻ. */
-  remove(boardId: string, actorId: string, userId: string) {
+  async remove(boardId: string, actorId: string, userId: string) {
     const self = userId === actorId;
-    return this.access.withLock(boardId, actorId, self ? BoardRole.VIEWER : BoardRole.ADMIN, async (tx, me) => {
+    await this.access.withLock(boardId, actorId, self ? BoardRole.VIEWER : BoardRole.ADMIN, async (tx, me) => {
       const target = self ? me : await tx.boardMember.findUnique({ where: { boardId_userId: { boardId, userId } } });
       if (!target) throw new NotFoundException(MEMBER_NOT_FOUND);
       if (target.role === BoardRole.ADMIN) await this.ensureOtherAdmin(tx, target, self ? LAST_ADMIN_LEAVE : LAST_ADMIN);
@@ -63,6 +72,7 @@ export class MembersService {
       // Không còn trong bảng → gỡ khỏi mọi thẻ của bảng
       await tx.cardMember.deleteMany({ where: { userId, card: { list: { boardId } } } });
     });
+    await this.realtime.memberRemoved(boardId, userId);
   }
 
   private async ensureOtherAdmin(tx: Prisma.TransactionClient, target: BoardMember, message: string) {

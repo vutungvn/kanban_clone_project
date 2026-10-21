@@ -1,0 +1,64 @@
+import { Injectable } from '@nestjs/common';
+import type { Namespace } from 'socket.io';
+import { currentSocketId } from './request-context';
+
+/** Phòng socket của 1 bảng — mọi người đang mở bảng đó. */
+export const boardRoom = (boardId: string) => `board:${boardId}`;
+
+/** Dữ liệu gắn vào mỗi socket sau khi xác thực. */
+export interface SocketData {
+  userId: string;
+}
+
+/** Sự kiện server → client */
+export interface BoardChangedEvent {
+  boardId: string;
+  /** Thẻ bị ảnh hưởng (nếu có) — modal đang mở thẻ này tải lại phần Hoạt động */
+  cardId?: string;
+}
+
+/**
+ * Phát sự kiện realtime cho những người đang mở bảng. Chỉ báo "bảng đã đổi" (không gửi dữ liệu) —
+ * client tự tải lại qua API nên luôn đúng quyền và không lộ dữ liệu cho người vừa mất quyền.
+ * Không gửi lại cho tab vừa thao tác (header X-Socket-Id).
+ */
+@Injectable()
+export class RealtimeService {
+  private server?: Namespace;
+
+  /** Gateway gọi khi khởi tạo xong namespace. */
+  attach(server: Namespace) {
+    this.server = server;
+  }
+
+  private toBoard(boardId: string) {
+    if (!this.server) return null;
+    const socketId = currentSocketId();
+    const room = this.server.to(boardRoom(boardId));
+    return socketId ? room.except(socketId) : room;
+  }
+
+  boardChanged(boardId: string, cardId?: string) {
+    this.toBoard(boardId)?.emit('board:changed', { boardId, ...(cardId && { cardId }) } satisfies BoardChangedEvent);
+  }
+
+  /** Bảng bị xoá: báo rồi đưa mọi socket ra khỏi phòng. */
+  boardDeleted(boardId: string) {
+    this.toBoard(boardId)?.emit('board:deleted', { boardId });
+    this.server?.in(boardRoom(boardId)).socketsLeave(boardRoom(boardId));
+  }
+
+  /** 1 người rời / bị xoá khỏi bảng: báo riêng cho họ và đưa ra khỏi phòng; người khác nhận "bảng đã đổi". */
+  async memberRemoved(boardId: string, userId: string) {
+    if (!this.server) return;
+    const origin = currentSocketId();
+    const sockets = await this.server.in(boardRoom(boardId)).fetchSockets();
+    for (const socket of sockets) {
+      if ((socket.data as SocketData).userId !== userId) continue;
+      // Tab vừa bấm "Rời bảng" tự chuyển trang, không cần báo
+      if (socket.id !== origin) socket.emit('board:removed', { boardId });
+      socket.leave(boardRoom(boardId));
+    }
+    this.boardChanged(boardId);
+  }
+}

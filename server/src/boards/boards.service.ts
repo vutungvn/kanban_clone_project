@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { BoardMember, BoardRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { BOARD_NOT_FOUND, BoardAccessService } from './board-access.service';
 import { DEFAULT_LABEL_COLORS } from './boards.constants';
 import { byPosition, listInclude, toList } from './card-shape';
@@ -47,6 +48,7 @@ export class BoardsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: BoardAccessService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async listForUser(userId: string) {
@@ -95,6 +97,7 @@ export class BoardsService {
       data: { title: dto.title, background: dto.background },
       include: withMembers,
     });
+    this.realtime.boardChanged(boardId);
     return toSummary(board, me);
   }
 
@@ -102,6 +105,7 @@ export class BoardsService {
   async remove(boardId: string, userId: string) {
     await this.access.require(boardId, userId, BoardRole.ADMIN);
     await this.prisma.board.delete({ where: { id: boardId } });
+    this.realtime.boardDeleted(boardId);
   }
 
   async setStarred(boardId: string, userId: string, starred: boolean) {

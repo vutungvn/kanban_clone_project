@@ -10,6 +10,7 @@ import { ApiError, errorMessage } from '@/lib/api';
 import { activitiesApi, type Activity, type ActivityFilter, type BoardDetail, type Card } from '@/lib/boards-api';
 import { formatDay, formatDayTime, formatFull, formatRelative } from '@/lib/card-dates';
 import { cn } from '@/lib/cn';
+import { onCardEvent } from '@/lib/realtime';
 import type { BoardActions } from '@/lib/use-board';
 import { LabelChip, PRIMARY_BUTTON, SECONDARY_BUTTON, SectionHeading, useAutosize } from './card-ui';
 
@@ -43,6 +44,9 @@ function useShowDetails() {
   return [show, toggle] as const;
 }
 
+/** `a` cũ hơn `b` theo thứ tự của API (createdAt giảm dần, trùng thì id giảm dần). */
+const isOlder = (a: Activity, b: Activity) => a.createdAt < b.createdAt || (a.createdAt === b.createdAt && a.id < b.id);
+
 /** Thẻ đổi ở những điểm có ghi lịch sử → cần tải lại phần đầu danh sách hoạt động. */
 const activitySignature = (card: Card) =>
   JSON.stringify([
@@ -65,8 +69,6 @@ function useCardActivity(card: Card, filter: ActivityFilter, actions: BoardActio
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [loadingMore, setLoadingMore] = useState(false);
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
   const cardId = card.id;
 
   /** Bị hạ quyền / thẻ bị xoá → đồng bộ lại bảng (modal tự đóng nếu thẻ không còn). */
@@ -96,25 +98,41 @@ function useCardActivity(card: Card, filter: ActivityFilter, actions: BoardActio
     };
   }, [cardId, filter]);
 
-  // Thẻ vừa được sửa (nhãn, ngày, checklist...) → lấy các hoạt động mới ghép lên đầu
+  /**
+   * Tải lại trang đầu rồi ghép với danh sách đang có: thêm mục mới, cập nhật bình luận đã sửa,
+   * bỏ bình luận đã bị xoá (trong phạm vi trang đầu). Các trang cũ hơn đã tải thì giữ nguyên.
+   */
+  const refreshHead = useCallback(() => {
+    activitiesApi
+      .list(cardId, filter)
+      .then((page) => {
+        const fresh = page.activities;
+        const oldest = fresh[fresh.length - 1];
+        if (!page.nextCursor || !oldest) {
+          // Toàn bộ lịch sử nằm gọn trong 1 trang
+          setItems(fresh);
+          setNextCursor(null);
+          return;
+        }
+        const freshIds = new Set(fresh.map((a) => a.id));
+        setItems((prev) => [...fresh, ...prev.filter((a) => !freshIds.has(a.id) && isOlder(a, oldest))]);
+      })
+      .catch(() => undefined);
+  }, [cardId, filter]);
+
+  // Chính mình vừa sửa thẻ (nhãn, ngày, checklist...) → lấy các hoạt động mới
   const signature = activitySignature(card);
   const firstSignature = useRef(signature);
   useEffect(() => {
     if (filter !== 'all' || signature === firstSignature.current) return;
     firstSignature.current = signature;
     // Chờ API của thao tác vừa rồi kịp ghi xong
-    const timer = setTimeout(() => {
-      activitiesApi
-        .list(cardId, filter)
-        .then((page) => {
-          const known = new Set(itemsRef.current.map((a) => a.id));
-          const fresh = page.activities.filter((a) => !known.has(a.id));
-          if (fresh.length) setItems((prev) => [...fresh, ...prev]);
-        })
-        .catch(() => undefined);
-    }, 600);
+    const timer = setTimeout(refreshHead, 600);
     return () => clearTimeout(timer);
-  }, [cardId, filter, signature]);
+  }, [filter, signature, refreshHead]);
+
+  // Người khác vừa thao tác trên thẻ này (realtime) — kể cả bình luận / sửa / xoá bình luận
+  useEffect(() => onCardEvent((event) => event.cardId === cardId && refreshHead()), [cardId, refreshHead]);
 
   const loadMore = async () => {
     if (!nextCursor || loadingMore) return;

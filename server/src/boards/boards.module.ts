@@ -3,6 +3,7 @@ import { AuthModule } from '../auth/auth.module';
 import { ActivitiesController } from './activities.controller';
 import { ActivitiesService } from './activities.service';
 import { BoardAccessService } from './board-access.service';
+import { BoardsGateway } from './boards.gateway';
 import { BoardsController } from './boards.controller';
 import { BoardsService } from './boards.service';
 import { CardsController } from './cards.controller';
@@ -42,8 +43,9 @@ import { MembersService } from './members.service';
     LabelsService,
     ChecklistsService,
     ActivitiesService,
+    BoardsGateway,
   ],
-  // Export để socket gateway (real-time) dùng lại khi kiểm tra quyền vào room
+  // Export để module khác dùng lại kiểm tra quyền trong bảng
   exports: [BoardAccessService],
 })
 export class BoardsModule {}

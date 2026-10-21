@@ -115,21 +115,66 @@ export function useBoard(boardId: string) {
     };
   }, [boardId, reloadKey, commit]);
 
+  /**
+   * Đồng bộ với thay đổi từ người khác (realtime) mà không giẫm lên thao tác của chính mình:
+   * - pending: số request của mình đang chạy; ops: tổng số thao tác đã bắt đầu
+   * - held: đang kéo thả (giao diện đang ở thứ tự tạm)
+   * - stale: có thay đổi trên server chưa tải về (vì đang bận) → tải khi rảnh
+   */
+  const sync = useRef({
+    pending: 0,
+    ops: 0,
+    held: false,
+    stale: false,
+    seq: 0,
+    timer: undefined as ReturnType<typeof setTimeout> | undefined,
+  });
+
   /** Tải lại ngầm từ server. Không còn là thành viên → màn "Không tìm thấy bảng". */
-  const resync = useCallback(() => {
-    boardsApi
-      .get(boardId)
-      .then((detail) => {
-        commit(detail);
-        boardsStore.upsert(toSummary(detail));
-      })
-      .catch((e) => {
-        if (e instanceof ApiError && e.status === 404) {
-          boardsStore.remove(boardId);
-          setStatus('not-found');
-        }
-      });
-  }, [boardId, commit]);
+  const resync = useCallback(
+    function run() {
+      const s = sync.current;
+      const seq = ++s.seq;
+      const ops = s.ops;
+      boardsApi
+        .get(boardId)
+        .then((detail) => {
+          if (seq !== s.seq) return; // đã có lần tải mới hơn
+          // Trong lúc tải mình lại thao tác → dữ liệu này có thể thiếu thao tác đó → bỏ, tải lại khi rảnh
+          if (s.ops !== ops || s.pending > 0 || s.held) {
+            s.stale = true;
+            if (s.pending === 0 && !s.held) run();
+            return;
+          }
+          s.stale = false;
+          commit(detail);
+          boardsStore.upsert(toSummary(detail));
+        })
+        .catch((e) => {
+          if (e instanceof ApiError && e.status === 404) {
+            boardsStore.remove(boardId);
+            setStatus('not-found');
+          }
+        });
+    },
+    [boardId, commit],
+  );
+
+  /** Bắt đầu / kết thúc 1 request của mình. Xong hết mà có thay đổi đang chờ → tải lại. */
+  const begin = useCallback(() => {
+    sync.current.pending++;
+    sync.current.ops++;
+  }, []);
+  const end = useCallback(() => {
+    const s = sync.current;
+    s.pending--;
+    if (s.pending === 0 && !s.held && s.stale) resync();
+  }, [resync]);
+
+  useEffect(() => {
+    const s = sync.current;
+    return () => clearTimeout(s.timer);
+  }, []);
 
   /** Đồng bộ thành viên / vai trò mới nhất sang danh sách bảng (trang /boards). */
   const syncSummary = useCallback(() => {
@@ -142,28 +187,34 @@ export function useBoard(boardId: string) {
       const snapshot = boardRef.current;
       if (!snapshot) return;
       commit(change(snapshot));
+      begin();
       try {
         await request();
       } catch (e) {
         commit(snapshot);
         toast.error(errorMessage(e));
         if (isAccessError(e)) resync();
+      } finally {
+        end();
       }
     },
-    [commit, resync],
+    [begin, commit, end, resync],
   );
 
   /** Thêm mới thất bại vì quyền → tải lại; lỗi vẫn ném ra cho nơi gọi hiển thị. */
   const create = useCallback(
     async <T,>(request: () => Promise<T>) => {
+      begin();
       try {
         return await request();
       } catch (e) {
         if (isAccessError(e)) resync();
         throw e;
+      } finally {
+        end();
       }
     },
-    [resync],
+    [begin, end, resync],
   );
 
   /** Thêm thành viên vừa vào bảng vào giao diện + danh sách bảng. */
@@ -196,6 +247,24 @@ export function useBoard(boardId: string) {
       /** Tải lại ngầm (không hiện màn tải) — vd thao tác ngoài useBoard gặp 403/404. */
       resync,
 
+      /** Realtime: người khác vừa sửa bảng → tải lại (gom các sự kiện dồn dập; đang bận thì để sau). */
+      remoteChanged: () => {
+        const s = sync.current;
+        clearTimeout(s.timer);
+        s.timer = setTimeout(() => {
+          if (s.pending > 0 || s.held) s.stale = true;
+          else resync();
+        }, 250);
+      },
+
+      /** Kéo thả: giữ nguyên giao diện trong lúc kéo; thả xong mới áp thay đổi từ người khác. */
+      holdSync: (held: boolean) => {
+        const s = sync.current;
+        s.held = held;
+        // Chờ request lưu vị trí kịp bắt đầu (được gọi ngay lúc thả) rồi mới xét
+        if (!held) setTimeout(() => s.pending === 0 && !s.held && s.stale && resync(), 0);
+      },
+
       /** Bình luận do useCardActivity gọi API riêng → chỉ cập nhật số bình luận trên thẻ. */
       changeCommentCount: (cardId: string, delta: number) => {
         const current = boardRef.current;
@@ -209,19 +278,25 @@ export function useBoard(boardId: string) {
 
       /** Thả danh sách — giao diện đã ở thứ tự mới; `rollback` là thứ tự trước khi kéo. */
       persistListMove: async (listId: string, index: number, rollback: List[]) => {
+        begin();
         try {
           await listsApi.move(listId, index);
         } catch (e) {
           rollbackMove(rollback, e);
+        } finally {
+          end();
         }
       },
 
       /** Thả thẻ — tương tự, có thể sang danh sách khác. */
       persistCardMove: async (cardId: string, listId: string, index: number, rollback: List[]) => {
+        begin();
         try {
           await cardsApi.move(cardId, listId, index);
         } catch (e) {
           rollbackMove(rollback, e);
+        } finally {
+          end();
         }
       },
 
@@ -239,10 +314,13 @@ export function useBoard(boardId: string) {
         const cards = [...target.cards];
         cards.splice(at, 0, { ...card, listId });
         commit({ ...current, lists: without.map((l) => (l.id === listId ? { ...l, cards } : l)) });
+        begin();
         try {
           await cardsApi.move(cardId, listId, at);
         } catch (e) {
           rollbackMove(rollback, e);
+        } finally {
+          end();
         }
       },
 
@@ -423,7 +501,7 @@ export function useBoard(boardId: string) {
         boardsStore.remove(boardId);
       },
     }),
-    [boardId, meId, addMember, commit, create, optimistic, resync, rollbackMove, syncSummary],
+    [boardId, meId, addMember, begin, commit, create, end, optimistic, resync, rollbackMove, syncSummary],
   );
 
   return { board, status, error, actions };

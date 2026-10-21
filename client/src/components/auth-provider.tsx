@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { authApi, LoginInput, RegisterInput, User } from '@/lib/auth';
 import { boardsStore } from '@/lib/boards-store';
+import { disconnectSocket } from '@/lib/realtime';
 
 interface AuthContextValue {
   user: User | null;
@@ -44,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Dù server lỗi vẫn đưa người dùng về trang đăng nhập
     await authApi.logout().catch(() => undefined);
     boardsStore.reset(); // không để lộ bảng của tài khoản này cho người đăng nhập sau
+    disconnectSocket();
     setUser(null);
     router.replace('/login');
     router.refresh();

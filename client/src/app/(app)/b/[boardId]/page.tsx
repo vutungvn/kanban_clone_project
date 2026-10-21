@@ -11,10 +11,12 @@ import { backgroundClass } from '@/lib/board-backgrounds';
 import { EMPTY_FILTER, filterCount, filterLists } from '@/lib/card-filter';
 import { cn } from '@/lib/cn';
 import { useBoard } from '@/lib/use-board';
+import { useBoardRealtime } from '@/lib/use-board-realtime';
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const { board, status, error, actions } = useBoard(boardId);
+  useBoardRealtime(boardId, actions);
   const cardParam = useCardParam();
   const [filter, setFilter] = useState(EMPTY_FILTER);
   // Đang lọc: danh sách chỉ còn thẻ khớp (null = không lọc)

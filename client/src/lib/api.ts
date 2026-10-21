@@ -1,4 +1,10 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+
+/** Id socket realtime của tab này — gửi kèm để server không báo ngược thay đổi của chính tab (xem lib/realtime.ts). */
+let getSocketId: () => string | undefined = () => undefined;
+export const setSocketIdGetter = (getter: () => string | undefined) => {
+  getSocketId = getter;
+};
 
 // Các endpoint này không được tự refresh khi 401 (tránh vòng lặp / nuốt lỗi sai mật khẩu)
 const NO_REFRESH_PATHS = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout'];
@@ -20,7 +26,7 @@ export function errorMessage(e: unknown) {
 let refreshing: Promise<boolean> | null = null;
 
 /** Gộp các lần refresh đồng thời thành 1 request. */
-function refreshSession() {
+export function refreshSession() {
   refreshing ??= fetch(`${API_URL}/auth/refresh`, { method: 'POST', credentials: 'include' })
     .then((res) => res.ok)
     .catch(() => false)
@@ -31,10 +37,11 @@ function refreshSession() {
 }
 
 export async function api<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
+  const socketId = getSocketId();
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...init.headers },
+    headers: { 'Content-Type': 'application/json', ...(socketId && { 'X-Socket-Id': socketId }), ...init.headers },
   });
 
   if (res.status === 401 && retry && !NO_REFRESH_PATHS.includes(path) && (await refreshSession())) {
