@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BoardRole } from '@prisma/client';
+import { BoardRole, NotificationType } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { BoardAccessService, lockBoard } from './board-access.service';
@@ -32,6 +33,7 @@ export class InvitesService {
     private readonly prisma: PrismaService,
     private readonly access: BoardAccessService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ===== ADMIN quản lý liên kết =====
@@ -119,8 +121,9 @@ export class InvitesService {
       if (await tx.boardMember.findUnique({ where: key })) return { status: 'MEMBER', boardId } as const;
 
       if (board.inviteRequiresApproval) {
-        await tx.boardJoinRequest.upsert({ where: key, create: { boardId, userId }, update: {} });
-        return { status: 'PENDING', boardId } as const;
+        const existing = await tx.boardJoinRequest.findUnique({ where: key });
+        if (!existing) await tx.boardJoinRequest.create({ data: { boardId, userId } });
+        return { status: 'PENDING', boardId, requested: !existing } as const;
       }
       await tx.boardMember.create({ data: { boardId, userId, role: board.inviteRole } });
       await tx.boardJoinRequest.deleteMany({ where: { boardId, userId } });
@@ -128,6 +131,16 @@ export class InvitesService {
     });
     // Người mới vào bảng → ai đang mở bảng thấy ngay thành viên mới
     if ('joined' in result) this.realtime.boardChanged(boardId);
+    // Yêu cầu mới → báo cho các ADMIN của bảng
+    if ('requested' in result && result.requested) {
+      const [admins, boardTitle] = await Promise.all([
+        this.prisma.boardMember.findMany({ where: { boardId, role: BoardRole.ADMIN }, select: { userId: true } }),
+        this.notifications.boardTitle(boardId),
+      ]);
+      await this.notifications.notify(
+        admins.map((a) => ({ userId: a.userId, actorId: userId, type: NotificationType.JOIN_REQUESTED, boardId, data: { boardTitle } })),
+      );
+    }
     return { status: result.status, boardId };
   }
 
@@ -167,9 +180,18 @@ export class InvitesService {
         include: { user: { select: memberUserSelect } },
       });
       return toMember(member);
-    }).then((member) => {
+    }).then(async (member) => {
       if (!member) throw new ConflictException(ALREADY_MEMBER);
       this.realtime.boardChanged(boardId);
+      await this.notifications.notify([
+        {
+          userId,
+          actorId,
+          type: NotificationType.JOIN_APPROVED,
+          boardId,
+          data: { boardTitle: await this.notifications.boardTitle(boardId), role: member.role },
+        },
+      ]);
       return member;
     });
   }

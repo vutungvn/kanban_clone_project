@@ -1,10 +1,12 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ActivityType, BoardRole, Prisma } from '@prisma/client';
+import { ActivityType, BoardRole, NotificationType, Prisma } from '@prisma/client';
+import { excerpt, NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { BoardAccessService } from './board-access.service';
 import { CARD_NOT_FOUND } from './boards.constants';
 import type { ListActivitiesQueryDto } from './dto/activity.dto';
+import { findMentions } from './mentions';
 
 export const COMMENT_NOT_FOUND = 'Không tìm thấy bình luận';
 export const NOT_COMMENT_AUTHOR = 'Bạn chỉ sửa được bình luận của mình';
@@ -36,7 +38,29 @@ export class ActivitiesService {
     private readonly prisma: PrismaService,
     private readonly access: BoardAccessService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
+
+  /**
+   * Thông báo cho bình luận: người được nhắc tên → COMMENT_MENTION; người được giao thẻ (chưa được nhắc)
+   * → CARD_COMMENT. Khi sửa (`previousText`) chỉ báo cho người MỚI được nhắc tên.
+   */
+  private async notifyComment(cardId: string, actorId: string, text: string, previousText?: string) {
+    const ctx = await this.notifications.cardContext(cardId);
+    if (!ctx) return;
+    const mentioned = findMentions(text, ctx.boardMembers);
+    if (previousText !== undefined) {
+      for (const id of findMentions(previousText, ctx.boardMembers)) mentioned.delete(id);
+    }
+    const data = { ...ctx.data, text: excerpt(text) };
+    const base = { actorId, boardId: ctx.boardId, cardId, data };
+    await this.notifications.notify([
+      ...[...mentioned].map((userId) => ({ ...base, userId, type: NotificationType.COMMENT_MENTION })),
+      ...(previousText === undefined
+        ? ctx.assigneeIds.filter((id) => !mentioned.has(id)).map((userId) => ({ ...base, userId, type: NotificationType.CARD_COMMENT }))
+        : []),
+    ]);
+  }
 
   log(db: Db, input: ActivityInput) {
     return db.activity.create({ data: input });
@@ -66,6 +90,7 @@ export class ActivitiesService {
       include: activityInclude,
     });
     this.realtime.boardChanged(boardId, cardId);
+    await this.notifyComment(cardId, userId, text);
     return toActivity(activity);
   }
 
@@ -79,6 +104,7 @@ export class ActivitiesService {
       include: activityInclude,
     });
     this.realtime.boardChanged(comment.boardId, comment.cardId);
+    await this.notifyComment(comment.cardId, userId, text, comment.text ?? '');
     return toActivity(activity);
   }
 
@@ -101,10 +127,10 @@ export class ActivitiesService {
   private async requireComment(id: string, userId: string, minRole: BoardRole) {
     const comment = await this.prisma.activity.findUnique({
       where: { id },
-      select: { type: true, boardId: true, cardId: true, userId: true },
+      select: { type: true, boardId: true, cardId: true, userId: true, text: true },
     });
     if (!comment || comment.type !== ActivityType.COMMENT) throw new NotFoundException(COMMENT_NOT_FOUND);
     const me = await this.access.require(comment.boardId, userId, minRole, COMMENT_NOT_FOUND);
-    return { userId: comment.userId, boardId: comment.boardId, cardId: comment.cardId, role: me.role };
+    return { userId: comment.userId, boardId: comment.boardId, cardId: comment.cardId, text: comment.text, role: me.role };
   }
 }

@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BoardMember, BoardRole, Prisma } from '@prisma/client';
+import { BoardMember, BoardRole, NotificationType, Prisma } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { BoardAccessService } from './board-access.service';
 import { memberUserSelect, toMember } from './boards.service';
@@ -22,7 +23,13 @@ export class MembersService {
   constructor(
     private readonly access: BoardAccessService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
+
+  private async notifyBoard(boardId: string, actorId: string, userId: string, type: NotificationType, role: BoardRole) {
+    const boardTitle = await this.notifications.boardTitle(boardId);
+    await this.notifications.notify([{ userId, actorId, type, boardId, data: { boardTitle, role } }]);
+  }
 
   async invite(boardId: string, actorId: string, dto: InviteMemberDto) {
     const member = await this.access.withLock(boardId, actorId, BoardRole.ADMIN, async (tx) => {
@@ -38,15 +45,18 @@ export class MembersService {
       return toMember(member);
     });
     this.realtime.boardChanged(boardId);
+    await this.notifyBoard(boardId, actorId, member.id, NotificationType.BOARD_INVITED, member.role);
     return member;
   }
 
   /** Người bị đổi vai trò đang mở bảng sẽ tải lại → giao diện đổi theo quyền mới. */
   async updateRole(boardId: string, actorId: string, userId: string, dto: UpdateMemberDto) {
+    let changed = false;
     const member = await this.access.withLock(boardId, actorId, BoardRole.ADMIN, async (tx) => {
       const target = await tx.boardMember.findUnique({ where: { boardId_userId: { boardId, userId } }, include: withUser });
       if (!target) throw new NotFoundException(MEMBER_NOT_FOUND);
       if (target.role === dto.role) return toMember(target);
+      changed = true;
       if (target.role === BoardRole.ADMIN) await this.ensureOtherAdmin(tx, target, LAST_ADMIN);
 
       const member = await tx.boardMember.update({
@@ -57,6 +67,7 @@ export class MembersService {
       return toMember(member);
     });
     this.realtime.boardChanged(boardId);
+    if (changed) await this.notifyBoard(boardId, actorId, userId, NotificationType.ROLE_CHANGED, dto.role);
     return member;
   }
 
@@ -73,6 +84,7 @@ export class MembersService {
       await tx.cardMember.deleteMany({ where: { userId, card: { list: { boardId } } } });
     });
     await this.realtime.memberRemoved(boardId, userId);
+    await this.notifications.removeForBoard(userId, boardId);
   }
 
   private async ensureOtherAdmin(tx: Prisma.TransactionClient, target: BoardMember, message: string) {

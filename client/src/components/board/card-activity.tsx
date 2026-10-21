@@ -1,7 +1,7 @@
 'use client';
 
 import { LoaderCircle, MessagesSquare, Pencil, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { Avatar } from '@/components/avatar';
 import { Popover, PopoverHeader, usePopoverAnchor } from '@/components/popover';
@@ -10,8 +10,10 @@ import { ApiError, errorMessage } from '@/lib/api';
 import { activitiesApi, type Activity, type ActivityFilter, type BoardDetail, type Card } from '@/lib/boards-api';
 import { formatDay, formatDayTime, formatFull, formatRelative } from '@/lib/card-dates';
 import { cn } from '@/lib/cn';
+import { splitMentions, type MentionMember } from '@/lib/mentions';
 import { onCardEvent } from '@/lib/realtime';
 import type { BoardActions } from '@/lib/use-board';
+import { MentionTextarea } from './mention-textarea';
 import { LabelChip, PRIMARY_BUTTON, SECONDARY_BUTTON, SectionHeading, useAutosize } from './card-ui';
 
 const MAX_COMMENT = 5_000;
@@ -199,6 +201,8 @@ export function CardActivity({ board, card, actions }: { board: BoardDetail; car
   const activity = useCardActivity(card, showDetails ? 'all' : 'comments', actions);
   const canComment = board.role !== 'VIEWER';
   const isAdmin = board.role === 'ADMIN';
+  // Gợi ý nhắc tên: mọi thành viên của bảng trừ chính mình
+  const mentionable = board.members.filter((m) => m.id !== user?.id);
   // Thẻ tạo trước khi có lịch sử hoạt động: vẫn hiện mốc tạo thẻ ở cuối
   const showCreatedFallback =
     showDetails && activity.status === 'ready' && !activity.nextCursor && !activity.items.some((a) => a.type === 'CARD_CREATED');
@@ -211,7 +215,7 @@ export function CardActivity({ board, card, actions }: { board: BoardDetail; car
         </button>
       </SectionHeading>
 
-      {canComment && user && <CommentComposer user={user} onSubmit={activity.addComment} />}
+      {canComment && user && <CommentComposer user={user} members={mentionable} onSubmit={activity.addComment} />}
 
       {activity.status === 'loading' ? (
         <p className="flex items-center gap-2 pl-11 text-sm text-ink-subtle">
@@ -231,6 +235,9 @@ export function CardActivity({ board, card, actions }: { board: BoardDetail; car
                 <CommentItem
                   key={item.id}
                   comment={item}
+                  members={board.members}
+                  mentionable={mentionable}
+                  meId={user?.id}
                   canEdit={canComment && item.user?.id === user?.id}
                   canDelete={canComment && (item.user?.id === user?.id || isAdmin)}
                   onEdit={(text) => void activity.editComment(item, text)}
@@ -267,9 +274,11 @@ export function CardActivity({ board, card, actions }: { board: BoardDetail; car
 /** Bấm vào để mở ô nhập. Ctrl/⌘ + Enter = lưu, Esc = thu gọn (giữ nháp). */
 function CommentComposer({
   user,
+  members,
   onSubmit,
 }: {
   user: { id: string; name: string };
+  members: MentionMember[];
   onSubmit: (text: string) => Promise<void>;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -298,15 +307,16 @@ function CommentComposer({
       <Avatar name={user.name} seed={user.id} size={32} className="shrink-0" />
       {open ? (
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <textarea
-            ref={ref}
+          <MentionTextarea
+            inputRef={ref}
+            members={members}
             autoFocus
             rows={2}
             value={value}
+            onValueChange={setValue}
             maxLength={MAX_COMMENT}
-            placeholder="Viết bình luận..."
+            placeholder="Viết bình luận... (gõ @ để nhắc tên)"
             aria-label="Nội dung bình luận"
-            onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
@@ -367,12 +377,20 @@ function Time({ iso }: { iso: string }) {
 
 function CommentItem({
   comment,
+  members,
+  mentionable,
+  meId,
   canEdit,
   canDelete,
   onEdit,
   onDelete,
 }: {
   comment: Activity;
+  /** Thành viên bảng — tô màu tên được nhắc */
+  members: MentionMember[];
+  /** Gợi ý khi sửa (trừ chính mình) */
+  mentionable: MentionMember[];
+  meId?: string;
   canEdit: boolean;
   canDelete: boolean;
   onEdit: (text: string) => void;
@@ -398,6 +416,7 @@ function CommentItem({
         {editing ? (
           <CommentEditor
             initial={comment.text ?? ''}
+            members={mentionable}
             onCancel={() => setEditing(false)}
             onSave={(text) => {
               setEditing(false);
@@ -415,7 +434,7 @@ function CommentItem({
                   : 'shadow-[0_0_0_1px_rgba(9,30,66,0.14)]',
               )}
             >
-              {comment.text}
+              <CommentText text={comment.text ?? ''} members={members} meId={meId} />
             </div>
             {(canEdit || canDelete) && (
               <div className="mt-1 -ml-2 flex items-center gap-0.5">
@@ -471,7 +490,17 @@ function CommentItem({
 }
 
 /** Sửa tại chỗ trong khung bình luận. Ctrl/⌘ + Enter = lưu, Esc = huỷ (không đóng modal). */
-function CommentEditor({ initial, onSave, onCancel }: { initial: string; onSave: (text: string) => void; onCancel: () => void }) {
+function CommentEditor({
+  initial,
+  members,
+  onSave,
+  onCancel,
+}: {
+  initial: string;
+  members: MentionMember[];
+  onSave: (text: string) => void;
+  onCancel: () => void;
+}) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState(initial);
   useAutosize(ref, value);
@@ -483,15 +512,16 @@ function CommentEditor({ initial, onSave, onCancel }: { initial: string; onSave:
 
   return (
     <div className="mt-1 rounded-lg bg-white shadow-[0_0_0_2px_var(--color-brand)]">
-      <textarea
-        ref={ref}
+      <MentionTextarea
+        inputRef={ref}
+        members={members}
         autoFocus
         rows={2}
         value={value}
+        onValueChange={setValue}
         maxLength={MAX_COMMENT}
         aria-label="Sửa bình luận"
         onFocus={(e) => e.currentTarget.setSelectionRange(e.currentTarget.value.length, e.currentTarget.value.length)}
-        onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
@@ -523,6 +553,29 @@ function CommentEditor({ initial, onSave, onCancel }: { initial: string; onSave:
         </span>
       </div>
     </div>
+  );
+}
+
+/** Nội dung bình luận, tên được nhắc tô màu (nhắc đến mình thì nổi bật hơn). */
+function CommentText({ text, members, meId }: { text: string; members: MentionMember[]; meId?: string }) {
+  return (
+    <>
+      {splitMentions(text, members).map((part, i) =>
+        part.memberId ? (
+          <span
+            key={i}
+            className={cn(
+              'rounded px-0.5 font-medium',
+              part.memberId === meId ? 'bg-brand text-white' : 'bg-brand/10 text-brand-hover',
+            )}
+          >
+            {part.text}
+          </span>
+        ) : (
+          <Fragment key={i}>{part.text}</Fragment>
+        ),
+      )}
+    </>
   );
 }
 

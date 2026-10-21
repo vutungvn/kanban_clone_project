@@ -1,10 +1,10 @@
 'use client';
 
-import { Check, X } from 'lucide-react';
+import { Bell, Check, X } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { cn } from '@/lib/cn';
 
-type Tone = 'success' | 'error';
+type Tone = 'success' | 'error' | 'info';
 type ToastItem = { id: number; tone: Tone; message: string; leaving?: boolean };
 
 const DURATION_MS = 4000;
@@ -42,6 +42,8 @@ function push(tone: Tone, message: string) {
 export const toast = {
   error: (message: string) => push('error', message),
   success: (message: string) => push('success', message),
+  /** Tin mới (vd thông báo vừa đến) */
+  info: (message: string) => push('info', message),
 };
 
 const subscribe = (listener: () => void) => {
@@ -55,6 +57,7 @@ const getSnapshot = () => items;
 const TONES: Record<Tone, { badge: string; bar: string }> = {
   success: { badge: 'bg-success', bar: 'bg-success' },
   error: { badge: 'bg-danger', bar: 'bg-danger' },
+  info: { badge: 'bg-brand', bar: 'bg-brand' },
 };
 
 export function Toaster() {
@@ -100,7 +103,13 @@ function ToastCard({ item }: { item: ToastItem }) {
       )}
     >
       <span className={cn('mt-px flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-white', badge)}>
-        {item.tone === 'success' ? <Check size={13} strokeWidth={3} /> : <span className="text-[13px] leading-none font-bold">!</span>}
+        {item.tone === 'success' ? (
+          <Check size={13} strokeWidth={3} />
+        ) : item.tone === 'info' ? (
+          <Bell size={12} strokeWidth={2.5} />
+        ) : (
+          <span className="text-[13px] leading-none font-bold">!</span>
+        )}
       </span>
       <p className="flex-1 text-sm leading-5.5 font-medium text-ink">{item.message}</p>
       <button

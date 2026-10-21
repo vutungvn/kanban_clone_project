@@ -8,19 +8,22 @@ datasource db {
 }
 
 model User {
-  id           String             @id @default(cuid())
-  email        String             @unique
-  name         String
-  passwordHash String
-  avatarUrl    String?
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  sessions     Session[]
-  ownedBoards  Board[]
-  memberships  BoardMember[]
-  joinRequests BoardJoinRequest[]
-  cardMembers  CardMember[]
-  activities   Activity[]
+  id                String             @id @default(cuid())
+  email             String             @unique
+  name              String
+  passwordHash      String
+  avatarUrl         String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  sessions          Session[]
+  ownedBoards       Board[]
+  memberships       BoardMember[]
+  joinRequests      BoardJoinRequest[]
+  cardMembers       CardMember[]
+  activities        Activity[]
+  // Thông báo mình nhận / thông báo do mình gây ra
+  notifications     Notification[]     @relation("NotificationRecipient")
+  sentNotifications Notification[]     @relation("NotificationActor")
 
   @@map("users")
 }
@@ -60,6 +63,7 @@ model Board {
   lists                  List[]
   labels                 Label[]
   activities             Activity[]
+  notifications          Notification[]
 
   @@index([ownerId])
   @@map("boards")
@@ -116,23 +120,24 @@ model List {
 }
 
 model Card {
-  id          String       @id @default(cuid())
-  listId      String
-  title       String
-  description String?
-  position    Float
+  id            String         @id @default(cuid())
+  listId        String
+  title         String
+  description   String?
+  position      Float
   // Ngày bắt đầu / hạn chót (đều tuỳ chọn). Nếu có cả hai thì startDate <= dueDate.
-  startDate   DateTime?
-  dueDate     DateTime?
+  startDate     DateTime?
+  dueDate       DateTime?
   // Đánh dấu đã hoàn thành hạn chót — xoá hạn chót thì tự về false
-  dueComplete Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
-  labels      CardLabel[]
-  members     CardMember[]
-  checklists  Checklist[]
-  activities  Activity[]
+  dueComplete   Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  list          List           @relation(fields: [listId], references: [id], onDelete: Cascade)
+  labels        CardLabel[]
+  members       CardMember[]
+  checklists    Checklist[]
+  activities    Activity[]
+  notifications Notification[]
 
   @@index([listId, position])
   @@map("cards")
@@ -243,4 +248,41 @@ model Activity {
   @@index([cardId, createdAt])
   @@index([boardId, createdAt])
   @@map("activities")
+}
+
+enum NotificationType {
+  CARD_ASSIGNED
+  CARD_UNASSIGNED
+  CARD_COMMENT
+  COMMENT_MENTION
+  CARD_DUE_CHANGED
+  CARD_MOVED
+  BOARD_INVITED
+  ROLE_CHANGED
+  JOIN_REQUESTED
+  JOIN_APPROVED
+}
+
+// Thông báo gửi tới 1 người. `data` chụp lại tên bảng / thẻ / trích đoạn bình luận... lúc tạo.
+// Bảng / thẻ bị xoá → thông báo liên quan bị xoá theo.
+model Notification {
+  id        String           @id @default(cuid())
+  // Người nhận
+  userId    String
+  // Người gây ra; null nếu tài khoản đã bị xoá
+  actorId   String?
+  boardId   String?
+  cardId    String?
+  type      NotificationType
+  data      Json             @default("{}")
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor     User?            @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  board     Board?           @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  card      Card?            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("notifications")
 }

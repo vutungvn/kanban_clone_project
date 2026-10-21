@@ -2,13 +2,14 @@ import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayConnection,
   OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
 } from '@nestjs/websockets';
 import type { Namespace, Socket } from 'socket.io';
 import { ACCESS_COOKIE, JwtPayload } from '../auth/auth.types';
-import { boardRoom, RealtimeService, SocketData } from '../realtime/realtime.service';
+import { boardRoom, RealtimeService, SocketData, userRoom } from '../realtime/realtime.service';
 import { BoardAccessService } from './board-access.service';
 
 /** Lấy 1 cookie từ header "a=1; b=2" của handshake. */
@@ -24,10 +25,11 @@ function readCookie(header: string | undefined, name: string) {
  * Socket realtime của bảng — namespace `/realtime`.
  * Kết nối: xác thực bằng cookie access_token (hoặc `auth.token`); sai / hết hạn → lỗi "unauthorized"
  * (client gọi /auth/refresh rồi kết nối lại). `board:join` kiểm tra quyền thành viên trước khi vào phòng.
- * Server → client: `board:changed`, `board:deleted`, `board:removed` (xem RealtimeService).
+ * Server → client: `board:changed`, `board:deleted`, `board:removed` (xem RealtimeService);
+ * thông báo cá nhân `notification:new`, `notifications:changed` qua phòng riêng `user:<id>`.
  */
 @WebSocketGateway({ namespace: 'realtime' })
-export class BoardsGateway implements OnGatewayInit {
+export class BoardsGateway implements OnGatewayInit, OnGatewayConnection {
   constructor(
     private readonly jwt: JwtService,
     private readonly access: BoardAccessService,
@@ -49,6 +51,11 @@ export class BoardsGateway implements OnGatewayInit {
         })
         .catch(() => next(new Error('unauthorized')));
     });
+  }
+
+  /** Đã xác thực → vào phòng riêng để nhận thông báo. */
+  async handleConnection(socket: Socket) {
+    await socket.join(userRoom((socket.data as SocketData).userId));
   }
 
   /** Vào phòng của bảng (mọi vai trò). Trả về `{ ok }` qua ack. */

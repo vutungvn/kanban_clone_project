@@ -23,6 +23,7 @@ export function setupSwagger(app: INestApplication) {
     .addTag('Labels', 'Nhãn của bảng (dùng chung cho mọi thẻ)')
     .addTag('Checklists', 'Checklist trong thẻ và các mục của nó')
     .addTag('Activities', 'Bình luận và lịch sử hoạt động của thẻ')
+    .addTag('Notifications', 'Thông báo cá nhân')
     .build();
 
   // Path trong document không chứa prefix "/api" vì đã khai báo ở servers

@@ -5,6 +5,9 @@ import { currentSocketId } from './request-context';
 /** Phòng socket của 1 bảng — mọi người đang mở bảng đó. */
 export const boardRoom = (boardId: string) => `board:${boardId}`;
 
+/** Phòng riêng của 1 người — mọi tab đang đăng nhập (vào tự động khi kết nối). */
+export const userRoom = (userId: string) => `user:${userId}`;
+
 /** Dữ liệu gắn vào mỗi socket sau khi xác thực. */
 export interface SocketData {
   userId: string;
@@ -46,6 +49,14 @@ export class RealtimeService {
   boardDeleted(boardId: string) {
     this.toBoard(boardId)?.emit('board:deleted', { boardId });
     this.server?.in(boardRoom(boardId)).socketsLeave(boardRoom(boardId));
+  }
+
+  /** Gửi riêng cho 1 người (mọi tab). `exceptOrigin`: bỏ qua tab vừa gửi request (vd đồng bộ "đã đọc"). */
+  toUser(userId: string, event: string, payload: unknown, exceptOrigin = false) {
+    if (!this.server) return;
+    const socketId = exceptOrigin ? currentSocketId() : undefined;
+    const room = this.server.to(userRoom(userId));
+    (socketId ? room.except(socketId) : room).emit(event, payload);
   }
 
   /** 1 người rời / bị xoá khỏi bảng: báo riêng cho họ và đưa ra khỏi phòng; người khác nhận "bảng đã đổi". */

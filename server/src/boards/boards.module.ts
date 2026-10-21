@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { ActivitiesController } from './activities.controller';
 import { ActivitiesService } from './activities.service';
 import { BoardAccessService } from './board-access.service';
@@ -21,7 +22,7 @@ import { MembersService } from './members.service';
 
 /** Bảng, thành viên, liên kết mời, danh sách, thẻ, nhãn, checklist, hoạt động — gom chung vì luôn đi cùng nhau và dùng chung kiểm tra quyền. */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, NotificationsModule],
   controllers: [
     BoardsController,
     MembersController,

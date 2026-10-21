@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ActivityType, BoardRole, Prisma } from '@prisma/client';
+import { ActivityType, BoardRole, NotificationType, Prisma } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { ActivitiesService } from './activities.service';
@@ -32,7 +33,17 @@ export class CardsService {
     private readonly access: BoardAccessService,
     private readonly activities: ActivitiesService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
+
+  /** Báo cho những người đang được giao thẻ (trừ người thao tác). */
+  private async notifyAssignees(cardId: string, actorId: string, type: NotificationType, data: Prisma.InputJsonObject = {}) {
+    const ctx = await this.notifications.cardContext(cardId);
+    if (!ctx) return;
+    await this.notifications.notify(
+      ctx.assigneeIds.map((userId) => ({ userId, actorId, type, boardId: ctx.boardId, cardId, data: { ...ctx.data, ...data } })),
+    );
+  }
 
   /** Thêm thẻ vào cuối danh sách. */
   async create(listId: string, userId: string, dto: CreateCardDto) {
@@ -101,6 +112,9 @@ export class CardsService {
       return toCard(card);
     });
     this.realtime.boardChanged(current.boardId, cardId);
+    if (!sameDate(dueDate, current.dueDate)) {
+      await this.notifyAssignees(cardId, userId, NotificationType.CARD_DUE_CHANGED, { dueDate: dueDate?.toISOString() ?? null });
+    }
     return card;
   }
 
@@ -140,6 +154,12 @@ export class CardsService {
       return toCard(card);
     });
     this.realtime.boardChanged(current.boardId, cardId);
+    if (current.listId !== dto.listId) {
+      await this.notifyAssignees(cardId, userId, NotificationType.CARD_MOVED, {
+        fromList: current.listTitle,
+        toList: target.title,
+      });
+    }
     return card;
   }
 
@@ -202,7 +222,7 @@ export class CardsService {
    */
   async addMember(cardId: string, actorId: string, memberId: string) {
     const { boardId } = await this.requireEditable(cardId, actorId);
-    await this.access.withLock(boardId, actorId, BoardRole.MEMBER, async (tx) => {
+    const added = await this.access.withLock(boardId, actorId, BoardRole.MEMBER, async (tx) => {
       const member = await tx.boardMember.findUnique({
         where: { boardId_userId: { boardId, userId: memberId } },
         select: { user: { select: { name: true } } },
@@ -219,24 +239,32 @@ export class CardsService {
             data: { userId: memberId, name: member.user.name },
           });
         }
+        return count > 0;
       } catch (e) {
         if (isForeignKeyError(e)) throw new NotFoundException(CARD_NOT_FOUND);
         throw e;
       }
     });
     this.realtime.boardChanged(boardId, cardId);
+    if (added) await this.notifyOne(cardId, actorId, memberId, NotificationType.CARD_ASSIGNED);
+  }
+
+  /** Báo cho 1 người về thẻ (vd vừa được giao / bị gỡ). */
+  private async notifyOne(cardId: string, actorId: string, userId: string, type: NotificationType) {
+    const ctx = await this.notifications.cardContext(cardId);
+    if (ctx) await this.notifications.notify([{ userId, actorId, type, boardId: ctx.boardId, cardId, data: ctx.data }]);
   }
 
   /** Bỏ giao thẻ. Chưa được giao thì bỏ qua. */
   async removeMember(cardId: string, actorId: string, memberId: string) {
     const { boardId } = await this.requireEditable(cardId, actorId);
-    await this.prisma.$transaction(async (tx) => {
+    const removed = await this.prisma.$transaction(async (tx) => {
       const link = await tx.cardMember.findUnique({
         where: { cardId_userId: { cardId, userId: memberId } },
         select: { user: { select: { name: true } } },
       });
       const { count } = await tx.cardMember.deleteMany({ where: { cardId, userId: memberId } });
-      if (!link || !count) return;
+      if (!link || !count) return false;
       await this.activities.log(tx, {
         boardId,
         cardId,
@@ -244,8 +272,10 @@ export class CardsService {
         type: ActivityType.MEMBER_REMOVED,
         data: { userId: memberId, name: link.user.name },
       });
+      return true;
     });
     this.realtime.boardChanged(boardId, cardId);
+    if (removed) await this.notifyOne(cardId, actorId, memberId, NotificationType.CARD_UNASSIGNED);
   }
 
   /** Kiểm tra quyền sửa thẻ, trả về bảng / danh sách chứa thẻ + các giá trị cần so khi ghi lịch sử. */
