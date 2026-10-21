@@ -1,14 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { BoardRole, Prisma } from '@prisma/client';
+import { ActivityType, BoardRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ActivitiesService } from './activities.service';
 import { BoardAccessService } from './board-access.service';
-import { POSITION_GAP } from './boards.constants';
+import { CARD_NOT_FOUND, POSITION_GAP } from './boards.constants';
 import { byPosition, cardInclude, toCard } from './card-shape';
 import type { CreateCardDto, MoveCardDto, UpdateCardDto } from './dto/card.dto';
 import { LIST_NOT_FOUND } from './lists.service';
 import { placeAt } from './position';
 
-export const CARD_NOT_FOUND = 'Không tìm thấy thẻ';
+export { CARD_NOT_FOUND };
 export const LABEL_NOT_FOUND = 'Không tìm thấy nhãn';
 export const NOT_BOARD_MEMBER = 'Người này không phải thành viên của bảng';
 export const START_AFTER_DUE = 'Ngày bắt đầu phải trước hoặc bằng hạn chót';
@@ -21,28 +22,43 @@ const isForeignKeyError = (e: unknown) => e instanceof Prisma.PrismaClientKnownR
 const toDate = (value: string | null | undefined, current: Date | null) =>
   value === undefined ? current : value === null ? null : new Date(value);
 
+const sameDate = (a: Date | null, b: Date | null) => (a?.getTime() ?? null) === (b?.getTime() ?? null);
+
 @Injectable()
 export class CardsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: BoardAccessService,
+    private readonly activities: ActivitiesService,
   ) {}
 
   /** Thêm thẻ vào cuối danh sách. */
   async create(listId: string, userId: string, dto: CreateCardDto) {
-    const list = await this.prisma.list.findUnique({ where: { id: listId }, select: { boardId: true } });
+    const list = await this.prisma.list.findUnique({ where: { id: listId }, select: { boardId: true, title: true } });
     if (!list) throw new NotFoundException(LIST_NOT_FOUND);
     await this.access.require(list.boardId, userId, BoardRole.MEMBER, LIST_NOT_FOUND);
 
     const { _max } = await this.prisma.card.aggregate({ where: { listId }, _max: { position: true } });
-    const card = await this.prisma.card.create({
-      data: { listId, title: dto.title, position: (_max.position ?? 0) + POSITION_GAP },
-      include: cardInclude,
+    return this.prisma.$transaction(async (tx) => {
+      const card = await tx.card.create({
+        data: { listId, title: dto.title, position: (_max.position ?? 0) + POSITION_GAP },
+        include: cardInclude,
+      });
+      await this.activities.log(tx, {
+        boardId: list.boardId,
+        cardId: card.id,
+        userId,
+        type: ActivityType.CARD_CREATED,
+        data: { listTitle: list.title },
+      });
+      return toCard(card);
     });
-    return toCard(card);
   }
 
-  /** Sửa tiêu đề, mô tả, ngày. Ngày bắt đầu phải <= hạn chót (so cả với giá trị đang lưu). */
+  /**
+   * Sửa tiêu đề, mô tả, ngày. Ngày bắt đầu phải <= hạn chót (so cả với giá trị đang lưu).
+   * Ghi lịch sử khi đổi tên, đổi ngày, đánh dấu hoàn thành (không ghi khi sửa mô tả).
+   */
   async update(cardId: string, userId: string, dto: UpdateCardDto) {
     const current = await this.requireEditable(cardId, userId);
     const startDate = toDate(dto.startDate, current.startDate);
@@ -50,27 +66,44 @@ export class CardsService {
     if (startDate && dueDate && startDate > dueDate) throw new BadRequestException(START_AFTER_DUE);
     if (dto.dueComplete && !dueDate) throw new BadRequestException(NO_DUE_DATE);
 
-    const card = await this.prisma.card.update({
-      where: { id: cardId },
-      data: {
-        title: dto.title,
-        description: dto.description,
-        startDate: dto.startDate === undefined ? undefined : startDate,
-        dueDate: dto.dueDate === undefined ? undefined : dueDate,
-        // Xoá hạn chót → bỏ luôn trạng thái hoàn thành
-        dueComplete: dueDate ? dto.dueComplete : false,
-      },
-      include: cardInclude,
+    const base = { boardId: current.boardId, cardId, userId };
+    return this.prisma.$transaction(async (tx) => {
+      const card = await tx.card.update({
+        where: { id: cardId },
+        data: {
+          title: dto.title,
+          description: dto.description,
+          startDate: dto.startDate === undefined ? undefined : startDate,
+          dueDate: dto.dueDate === undefined ? undefined : dueDate,
+          // Xoá hạn chót → bỏ luôn trạng thái hoàn thành
+          dueComplete: dueDate ? dto.dueComplete : false,
+        },
+        include: cardInclude,
+      });
+
+      if (dto.title !== undefined && dto.title !== current.title) {
+        await this.activities.log(tx, { ...base, type: ActivityType.CARD_RENAMED, data: { from: current.title, to: dto.title } });
+      }
+      if (!sameDate(startDate, current.startDate) || !sameDate(dueDate, current.dueDate)) {
+        await this.activities.log(tx, {
+          ...base,
+          type: ActivityType.DATES_CHANGED,
+          data: { startDate: startDate?.toISOString() ?? null, dueDate: dueDate?.toISOString() ?? null },
+        });
+      }
+      if (dto.dueComplete !== undefined && dueDate && dto.dueComplete !== current.dueComplete) {
+        await this.activities.log(tx, { ...base, type: ActivityType.DUE_COMPLETE_CHANGED, data: { complete: dto.dueComplete } });
+      }
+      return toCard(card);
     });
-    return toCard(card);
   }
 
-  /** Kéo thả: chuyển thẻ tới vị trí `index` của danh sách `listId` (cùng bảng). */
+  /** Kéo thả: chuyển thẻ tới vị trí `index` của danh sách `listId` (cùng bảng). Sang danh sách khác thì ghi lịch sử. */
   async move(cardId: string, userId: string, dto: MoveCardDto) {
-    const { boardId } = await this.requireEditable(cardId, userId);
-    const target = await this.prisma.list.findUnique({ where: { id: dto.listId }, select: { boardId: true } });
+    const current = await this.requireEditable(cardId, userId);
+    const target = await this.prisma.list.findUnique({ where: { id: dto.listId }, select: { boardId: true, title: true } });
     // Chỉ cho chuyển trong cùng bảng; list của bảng khác coi như không tồn tại
-    if (!target || target.boardId !== boardId) throw new NotFoundException(LIST_NOT_FOUND);
+    if (!target || target.boardId !== current.boardId) throw new NotFoundException(LIST_NOT_FOUND);
 
     return this.prisma.$transaction(async (tx) => {
       const siblings = await tx.card.findMany({
@@ -89,6 +122,15 @@ export class CardsService {
         data: { listId: dto.listId, position },
         include: cardInclude,
       });
+      if (current.listId !== dto.listId) {
+        await this.activities.log(tx, {
+          boardId: current.boardId,
+          cardId,
+          userId,
+          type: ActivityType.CARD_MOVED,
+          data: { fromList: current.listTitle, toList: target.title },
+        });
+      }
       return toCard(card);
     });
   }
@@ -101,10 +143,21 @@ export class CardsService {
   /** Gắn nhãn (của cùng bảng) vào thẻ. Đã gắn rồi thì bỏ qua. */
   async addLabel(cardId: string, userId: string, labelId: string) {
     const { boardId } = await this.requireEditable(cardId, userId);
-    const label = await this.prisma.label.findUnique({ where: { id: labelId }, select: { boardId: true } });
+    const label = await this.prisma.label.findUnique({ where: { id: labelId }, select: { boardId: true, name: true, color: true } });
     if (!label || label.boardId !== boardId) throw new NotFoundException(LABEL_NOT_FOUND);
     try {
-      await this.prisma.cardLabel.createMany({ data: { cardId, labelId }, skipDuplicates: true });
+      await this.prisma.$transaction(async (tx) => {
+        const { count } = await tx.cardLabel.createMany({ data: { cardId, labelId }, skipDuplicates: true });
+        if (count) {
+          await this.activities.log(tx, {
+            boardId,
+            cardId,
+            userId,
+            type: ActivityType.LABEL_ADDED,
+            data: { name: label.name, color: label.color },
+          });
+        }
+      });
     } catch (e) {
       if (isForeignKeyError(e)) throw new NotFoundException(LABEL_NOT_FOUND);
       throw e;
@@ -113,8 +166,23 @@ export class CardsService {
 
   /** Gỡ nhãn khỏi thẻ. Chưa gắn thì bỏ qua. */
   async removeLabel(cardId: string, userId: string, labelId: string) {
-    await this.requireEditable(cardId, userId);
-    await this.prisma.cardLabel.deleteMany({ where: { cardId, labelId } });
+    const { boardId } = await this.requireEditable(cardId, userId);
+    await this.prisma.$transaction(async (tx) => {
+      const link = await tx.cardLabel.findUnique({
+        where: { cardId_labelId: { cardId, labelId } },
+        select: { label: { select: { name: true, color: true } } },
+      });
+      // deleteMany: 2 request gỡ cùng lúc thì request sau xoá 0 dòng thay vì lỗi
+      const { count } = await tx.cardLabel.deleteMany({ where: { cardId, labelId } });
+      if (!link || !count) return;
+      await this.activities.log(tx, {
+        boardId,
+        cardId,
+        userId,
+        type: ActivityType.LABEL_REMOVED,
+        data: { name: link.label.name, color: link.label.color },
+      });
+    });
   }
 
   /**
@@ -124,10 +192,22 @@ export class CardsService {
   async addMember(cardId: string, actorId: string, memberId: string) {
     const { boardId } = await this.requireEditable(cardId, actorId);
     await this.access.withLock(boardId, actorId, BoardRole.MEMBER, async (tx) => {
-      const member = await tx.boardMember.findUnique({ where: { boardId_userId: { boardId, userId: memberId } } });
+      const member = await tx.boardMember.findUnique({
+        where: { boardId_userId: { boardId, userId: memberId } },
+        select: { user: { select: { name: true } } },
+      });
       if (!member) throw new NotFoundException(NOT_BOARD_MEMBER);
       try {
-        await tx.cardMember.createMany({ data: { cardId, userId: memberId }, skipDuplicates: true });
+        const { count } = await tx.cardMember.createMany({ data: { cardId, userId: memberId }, skipDuplicates: true });
+        if (count) {
+          await this.activities.log(tx, {
+            boardId,
+            cardId,
+            userId: actorId,
+            type: ActivityType.MEMBER_ADDED,
+            data: { userId: memberId, name: member.user.name },
+          });
+        }
       } catch (e) {
         if (isForeignKeyError(e)) throw new NotFoundException(CARD_NOT_FOUND);
         throw e;
@@ -137,18 +217,40 @@ export class CardsService {
 
   /** Bỏ giao thẻ. Chưa được giao thì bỏ qua. */
   async removeMember(cardId: string, actorId: string, memberId: string) {
-    await this.requireEditable(cardId, actorId);
-    await this.prisma.cardMember.deleteMany({ where: { cardId, userId: memberId } });
+    const { boardId } = await this.requireEditable(cardId, actorId);
+    await this.prisma.$transaction(async (tx) => {
+      const link = await tx.cardMember.findUnique({
+        where: { cardId_userId: { cardId, userId: memberId } },
+        select: { user: { select: { name: true } } },
+      });
+      const { count } = await tx.cardMember.deleteMany({ where: { cardId, userId: memberId } });
+      if (!link || !count) return;
+      await this.activities.log(tx, {
+        boardId,
+        cardId,
+        userId: actorId,
+        type: ActivityType.MEMBER_REMOVED,
+        data: { userId: memberId, name: link.user.name },
+      });
+    });
   }
 
-  /** Kiểm tra quyền sửa thẻ, trả về bảng chứa thẻ + ngày hiện tại. */
+  /** Kiểm tra quyền sửa thẻ, trả về bảng / danh sách chứa thẻ + các giá trị cần so khi ghi lịch sử. */
   private async requireEditable(cardId: string, userId: string) {
     const card = await this.prisma.card.findUnique({
       where: { id: cardId },
-      select: { startDate: true, dueDate: true, list: { select: { boardId: true } } },
+      select: {
+        title: true,
+        startDate: true,
+        dueDate: true,
+        dueComplete: true,
+        listId: true,
+        list: { select: { boardId: true, title: true } },
+      },
     });
     if (!card) throw new NotFoundException(CARD_NOT_FOUND);
     await this.access.require(card.list.boardId, userId, BoardRole.MEMBER, CARD_NOT_FOUND);
-    return { boardId: card.list.boardId, startDate: card.startDate, dueDate: card.dueDate };
+    const { list, ...rest } = card;
+    return { ...rest, boardId: list.boardId, listTitle: list.title };
   }
 }

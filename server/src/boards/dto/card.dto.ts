@@ -116,6 +116,9 @@ export class CardDto {
   @ApiProperty({ type: [String], example: ['cmg9x2k7a0000vq8h3b1c2d4e'], description: 'ID thành viên được giao — chi tiết nằm ở `board.members`' })
   memberIds: string[];
 
+  @ApiProperty({ example: 2, description: 'Số bình luận' })
+  commentCount: number;
+
   @ApiProperty({ type: () => [ChecklistDto], description: 'Các checklist kèm mục, đã sắp theo position' })
   checklists: ChecklistDto[];
 

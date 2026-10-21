@@ -80,3 +80,17 @@ export const addDays = (date: Date, days: number) => {
   next.setDate(next.getDate() + days);
   return next;
 };
+
+/** "vừa xong", "5 phút trước", "3 giờ trước", "hôm qua lúc 10:00", rồi "20 thg 10, 10:00". */
+export function formatRelative(iso: string, now = Date.now()) {
+  const date = new Date(iso);
+  const diff = now - date.getTime();
+  if (diff < 60_000) return 'vừa xong';
+  if (diff < HOUR) return `${Math.floor(diff / 60_000)} phút trước`;
+  if (diff < DAY && date.getDate() === new Date(now).getDate()) return `${Math.floor(diff / HOUR)} giờ trước`;
+  if (toDateInput(date) === toDateInput(addDays(new Date(now), -1))) return `hôm qua lúc ${TIME.format(date)}`;
+  return formatDayTime(iso);
+}
+
+/** "20 thg 10, 2026 lúc 10:28" — tooltip thời điểm đầy đủ. */
+export const formatFull = (iso: string) => `${WITH_YEAR.format(new Date(iso))} lúc ${TIME.format(new Date(iso))}`;

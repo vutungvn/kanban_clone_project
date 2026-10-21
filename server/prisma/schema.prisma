@@ -20,6 +20,7 @@ model User {
   memberships  BoardMember[]
   joinRequests BoardJoinRequest[]
   cardMembers  CardMember[]
+  activities   Activity[]
 
   @@map("users")
 }
@@ -58,6 +59,7 @@ model Board {
   joinRequests           BoardJoinRequest[]
   lists                  List[]
   labels                 Label[]
+  activities             Activity[]
 
   @@index([ownerId])
   @@map("boards")
@@ -130,6 +132,7 @@ model Card {
   labels      CardLabel[]
   members     CardMember[]
   checklists  Checklist[]
+  activities  Activity[]
 
   @@index([listId, position])
   @@map("cards")
@@ -200,4 +203,44 @@ model ChecklistItem {
 
   @@index([checklistId, position])
   @@map("checklist_items")
+}
+
+enum ActivityType {
+  COMMENT
+  CARD_CREATED
+  CARD_RENAMED
+  CARD_MOVED
+  LABEL_ADDED
+  LABEL_REMOVED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+  DATES_CHANGED
+  DUE_COMPLETE_CHANGED
+  CHECKLIST_ADDED
+  CHECKLIST_REMOVED
+  CHECKLIST_ITEM_COMPLETED
+  CHECKLIST_ITEM_UNCOMPLETED
+}
+
+// Lịch sử hoạt động của thẻ; bình luận cũng là 1 hoạt động (type COMMENT, nội dung ở `text`).
+// `data` chụp lại tên nhãn / danh sách / thành viên... tại thời điểm đó — đổi tên hay xoá sau này không làm sai lịch sử.
+model Activity {
+  id        String       @id @default(cuid())
+  boardId   String
+  cardId    String
+  // Người thực hiện; null nếu tài khoản đã bị xoá
+  userId    String?
+  type      ActivityType
+  data      Json         @default("{}")
+  text      String?
+  // Lần sửa bình luận gần nhất
+  editedAt  DateTime?
+  createdAt DateTime     @default(now())
+  board     Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  card      Card         @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([cardId, createdAt])
+  @@index([boardId, createdAt])
+  @@map("activities")
 }

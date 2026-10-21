@@ -32,3 +32,6 @@ export const DEFAULT_LABEL_COLORS = ['green', 'yellow', 'orange', 'red', 'purple
 export const MAX_LABEL_NAME = 50;
 export const MAX_CHECKLIST_TITLE = 255;
 export const MAX_CHECKLIST_ITEM_TITLE = 500;
+export const MAX_COMMENT = 5_000;
+
+export const CARD_NOT_FOUND = 'Không tìm thấy thẻ';

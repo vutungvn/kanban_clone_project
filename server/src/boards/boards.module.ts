@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { ActivitiesController } from './activities.controller';
+import { ActivitiesService } from './activities.service';
 import { BoardAccessService } from './board-access.service';
 import { BoardsController } from './boards.controller';
 import { BoardsService } from './boards.service';
@@ -16,7 +18,7 @@ import { ListsService } from './lists.service';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
 
-/** Bảng, thành viên, liên kết mời, danh sách, thẻ, nhãn, checklist — gom chung vì luôn đi cùng nhau và dùng chung kiểm tra quyền. */
+/** Bảng, thành viên, liên kết mời, danh sách, thẻ, nhãn, checklist, hoạt động — gom chung vì luôn đi cùng nhau và dùng chung kiểm tra quyền. */
 @Module({
   imports: [AuthModule],
   controllers: [
@@ -28,6 +30,7 @@ import { MembersService } from './members.service';
     CardsController,
     LabelsController,
     ChecklistsController,
+    ActivitiesController,
   ],
   providers: [
     BoardAccessService,
@@ -38,6 +41,7 @@ import { MembersService } from './members.service';
     CardsService,
     LabelsService,
     ChecklistsService,
+    ActivitiesService,
   ],
   // Export để socket gateway (real-time) dùng lại khi kiểm tra quyền vào room
   exports: [BoardAccessService],

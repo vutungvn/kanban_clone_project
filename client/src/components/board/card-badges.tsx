@@ -1,6 +1,6 @@
 'use client';
 
-import { AlignLeft, Clock, SquareCheck } from 'lucide-react';
+import { AlignLeft, Clock, MessageSquare, SquareCheck } from 'lucide-react';
 import { createContext, useContext } from 'react';
 import { Avatar } from '@/components/avatar';
 import type { BoardMember, Card, Label } from '@/lib/boards-api';
@@ -36,6 +36,7 @@ export function describeCard(card: Card, labels: Label[], members: BoardMember[]
   if (dates) parts.push(`Ngày: ${dates}${status && DUE_STATUS_LABEL[status] ? ` (${DUE_STATUS_LABEL[status]})` : ''}`);
   const { done, total } = checklistProgress(card.checklists);
   if (total) parts.push(`Checklist ${done}/${total}`);
+  if (card.commentCount) parts.push(`${card.commentCount} bình luận`);
   if (members.length) parts.push(`Thành viên: ${members.map((m) => m.name).join(', ')}`);
   return parts.join('. ');
 }
@@ -46,7 +47,7 @@ export function CardFace({ card }: { card: Card }) {
   const dates = formatCardDates(card);
   const status = dueStatus(card);
   const { done, total } = checklistProgress(card.checklists);
-  const hasBadges = !!dates || !!card.description || total > 0 || members.length > 0;
+  const hasBadges = !!dates || !!card.description || card.commentCount > 0 || total > 0 || members.length > 0;
 
   return (
     <>
@@ -72,6 +73,12 @@ export function CardFace({ card }: { card: Card }) {
           {card.description && (
             <span className="flex h-6 items-center px-1" title="Thẻ có mô tả">
               <AlignLeft size={16} aria-hidden />
+            </span>
+          )}
+          {card.commentCount > 0 && (
+            <span className="flex h-6 items-center gap-1 px-1" title="Bình luận">
+              <MessageSquare size={14} aria-hidden />
+              {card.commentCount}
             </span>
           )}
           {total > 0 && (

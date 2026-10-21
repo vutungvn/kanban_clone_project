@@ -72,9 +72,44 @@ export interface Card {
   /** ID thành viên được giao — chi tiết ở `board.members` */
   memberIds: string[];
   checklists: Checklist[];
+  commentCount: number;
   createdAt: string;
   updatedAt: string;
 }
+
+export type ActivityType =
+  | 'COMMENT'
+  | 'CARD_CREATED'
+  | 'CARD_RENAMED'
+  | 'CARD_MOVED'
+  | 'LABEL_ADDED'
+  | 'LABEL_REMOVED'
+  | 'MEMBER_ADDED'
+  | 'MEMBER_REMOVED'
+  | 'DATES_CHANGED'
+  | 'DUE_COMPLETE_CHANGED'
+  | 'CHECKLIST_ADDED'
+  | 'CHECKLIST_REMOVED'
+  | 'CHECKLIST_ITEM_COMPLETED'
+  | 'CHECKLIST_ITEM_UNCOMPLETED';
+
+/**
+ * Một mục trong lịch sử hoạt động của thẻ. Bình luận là type COMMENT (nội dung ở `text`).
+ * `data` chụp lại tên nhãn / danh sách / thành viên lúc xảy ra — xem mô tả ActivityDto trên Swagger.
+ */
+export interface Activity {
+  id: string;
+  cardId: string;
+  type: ActivityType;
+  data: Record<string, unknown>;
+  text: string | null;
+  editedAt: string | null;
+  createdAt: string;
+  /** null nếu tài khoản đã bị xoá */
+  user: { id: string; name: string; avatarUrl: string | null } | null;
+}
+
+export type ActivityFilter = 'all' | 'comments';
 
 /** Các trường sửa được qua PATCH /cards/:id. Ngày gửi ISO; `null` = xoá. */
 export interface CardInput {
@@ -216,6 +251,19 @@ export const cardsApi = {
   /** Giao / bỏ giao thẻ cho thành viên của bảng */
   setMember: (cardId: string, userId: string, on: boolean) =>
     api<void>(`/cards/${id(cardId)}/members/${id(userId)}`, send(on ? 'PUT' : 'DELETE')),
+};
+
+export const activitiesApi = {
+  /** Mới nhất trước; `cursor` = `nextCursor` của trang trước */
+  list: (cardId: string, filter: ActivityFilter, cursor?: string | null) => {
+    const query = new URLSearchParams({ filter, limit: '20', ...(cursor && { cursor }) });
+    return api<{ activities: Activity[]; nextCursor: string | null }>(`/cards/${id(cardId)}/activities?${query}`);
+  },
+  addComment: (cardId: string, text: string) =>
+    api<{ activity: Activity }>(`/cards/${id(cardId)}/comments`, send('POST', { text })).then((r) => r.activity),
+  updateComment: (commentId: string, text: string) =>
+    api<{ activity: Activity }>(`/comments/${id(commentId)}`, send('PATCH', { text })).then((r) => r.activity),
+  removeComment: (commentId: string) => api<void>(`/comments/${id(commentId)}`, send('DELETE')),
 };
 
 export const labelsApi = {

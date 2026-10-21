@@ -8,7 +8,6 @@ import {
   Copy,
   CreditCard,
   ImageIcon,
-  MessagesSquare,
   Paperclip,
   Plus,
   SquareCheck,
@@ -29,6 +28,7 @@ import { ComingSoonBadge } from '@/components/ui';
 import type { BoardDetail, Card, List } from '@/lib/boards-api';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
+import { CardActivity } from './card-activity';
 import { resolveCard } from './card-badges';
 import { AddChecklistPopoverContent, ChecklistSection } from './card-checklists';
 import { CardDatesField, DatesPopoverContent } from './card-dates';
@@ -43,15 +43,6 @@ const SIDEBAR_BUTTON =
   'flex w-full items-center gap-2.5 rounded bg-surface-low px-3 py-2 text-left text-sm font-medium text-ink transition-colors hover:bg-surface-mid aria-expanded:bg-surface-high disabled:cursor-not-allowed disabled:text-ink/50 disabled:hover:bg-surface-low';
 const SELECT_CLASS =
   'h-9 w-full rounded bg-white px-2 text-sm text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]';
-
-const DATE_FORMAT = new Intl.DateTimeFormat('vi-VN', { day: 'numeric', month: 'short', year: 'numeric' });
-const TIME_FORMAT = new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' });
-
-/** "8 thg 10, 2026 lúc 10:28" */
-const formatDateTime = (iso: string) => {
-  const date = new Date(iso);
-  return `${DATE_FORMAT.format(date)} lúc ${TIME_FORMAT.format(date)}`;
-};
 
 // ---------- URL: /b/:boardId?card=:cardId ----------
 
@@ -197,7 +188,7 @@ function CardModal({
           {card.checklists.map((checklist) => (
             <ChecklistSection key={checklist.id} checklist={checklist} canEdit={canEdit} actions={actions} />
           ))}
-          <Activity card={card} />
+          <CardActivity board={board} card={card} actions={actions} />
         </div>
 
         {canEdit && (
@@ -547,32 +538,6 @@ function DescriptionEditor({
         </span>
       </div>
     </div>
-  );
-}
-
-// ---------- Hoạt động ----------
-
-/** Bình luận chưa có API → giữ chỗ; chỉ hiện mốc tạo thẻ. */
-function Activity({ card }: { card: Card }) {
-  const { user } = useAuth();
-  return (
-    <section className="flex flex-col gap-3">
-      <SectionHeading icon={MessagesSquare} title="Hoạt động" />
-      <div className="flex items-start gap-3">
-        {user && <Avatar name={user.name} seed={user.id} size={32} className="shrink-0" />}
-        <div
-          aria-disabled
-          title="Bình luận — Sắp có"
-          className="flex min-h-10 flex-1 cursor-not-allowed items-center justify-between gap-2 rounded-lg bg-surface-low px-3 py-2 text-sm text-ink-subtle"
-        >
-          Viết bình luận...
-          <ComingSoonBadge />
-        </div>
-      </div>
-      <p className="pl-11 text-xs text-ink-subtle">
-        Thẻ được tạo ngày <time dateTime={card.createdAt}>{formatDateTime(card.createdAt)}</time>
-      </p>
-    </section>
   );
 }
 

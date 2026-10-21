@@ -8,15 +8,17 @@ export const cardInclude = {
   labels: { select: { labelId: true }, orderBy: { label: { createdAt: 'asc' } } },
   members: { select: { userId: true }, orderBy: { createdAt: 'asc' } },
   checklists: { orderBy: byPosition, include: { items: { orderBy: byPosition } } },
+  _count: { select: { activities: { where: { type: 'COMMENT' } } } },
 } as const satisfies Prisma.CardInclude;
 
 type CardWithRelations = Prisma.CardGetPayload<{ include: typeof cardInclude }>;
 
 /** Card + quan hệ → dạng trả về cho client: nhãn / thành viên chỉ gửi id (chi tiết nằm ở board.labels / board.members). */
-export const toCard = ({ labels, members, ...card }: CardWithRelations) => ({
+export const toCard = ({ labels, members, _count, ...card }: CardWithRelations) => ({
   ...card,
   labelIds: labels.map((l) => l.labelId),
   memberIds: members.map((m) => m.userId),
+  commentCount: _count.activities,
 });
 
 /** Danh sách kèm thẻ đã sắp xếp. */

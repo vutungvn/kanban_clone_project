@@ -193,6 +193,15 @@ export function useBoard(boardId: string) {
     () => ({
       reload: () => setReloadKey((k) => k + 1),
 
+      /** Tải lại ngầm (không hiện màn tải) — vd thao tác ngoài useBoard gặp 403/404. */
+      resync,
+
+      /** Bình luận do useCardActivity gọi API riêng → chỉ cập nhật số bình luận trên thẻ. */
+      changeCommentCount: (cardId: string, delta: number) => {
+        const current = boardRef.current;
+        if (current) commit(mapCard(current, cardId, (c) => ({ ...c, commentCount: Math.max(0, c.commentCount + delta) })));
+      },
+
       /** Kéo thả: hiển thị thứ tự tạm trong lúc đang kéo (chưa gọi API). */
       previewLists: (lists: List[]) => {
         if (boardRef.current) commit({ ...boardRef.current, lists });
@@ -414,7 +423,7 @@ export function useBoard(boardId: string) {
         boardsStore.remove(boardId);
       },
     }),
-    [boardId, meId, addMember, commit, create, optimistic, rollbackMove, syncSummary],
+    [boardId, meId, addMember, commit, create, optimistic, resync, rollbackMove, syncSummary],
   );
 
   return { board, status, error, actions };
