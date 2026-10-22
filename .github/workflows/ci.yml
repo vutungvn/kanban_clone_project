@@ -1,0 +1,102 @@
+name: CI
+
+# Khi nào chạy: push lên main, hoặc mở / cập nhật PR vào main
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Push liên tiếp lên cùng 1 nhánh → huỷ lượt chạy cũ, chỉ giữ lượt mới nhất
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Server (NestJS + Prisma)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server # mọi lệnh "run" chạy trong thư mục server/
+
+    # Postgres tạm để chạy thử migration
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kanban
+          POSTGRES_PASSWORD: kanban
+          POSTGRES_DB: kanban
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kanban -d kanban"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://kanban:kanban@localhost:5432/kanban?schema=public
+
+    steps:
+      - name: Lấy code
+        uses: actions/checkout@v4
+
+      - name: Cài Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Cài package
+        run: npm ci
+
+      - name: Kiểm tra schema Prisma
+        run: npx prisma validate
+
+      - name: Sinh Prisma Client
+        run: npx prisma generate
+
+      - name: Chạy toàn bộ migration lên DB trống
+        run: npx prisma migrate deploy
+
+      - name: Kiểm tra schema.prisma khớp với migration
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Build
+        run: npm run build
+
+  client:
+    name: Client (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+
+    steps:
+      - name: Lấy code
+        uses: actions/checkout@v4
+
+      - name: Cài Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Cài package
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Build
+        run: npm run build
