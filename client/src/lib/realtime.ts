@@ -1,7 +1,11 @@
-'use client';
+"use client";
 
-import { io, type Socket } from 'socket.io-client';
-import { API_URL, refreshSession, setSocketIdGetter } from './api';
+import { io, type Socket } from "socket.io-client";
+import { API_URL, refreshSession, setSocketIdGetter, api } from "./api";
+
+/** Địa chỉ server cho socket. Deploy: domain Render (Vercel không chuyển tiếp WebSocket). Dev: lấy từ API_URL. */
+const SOCKET_URL =
+  process.env.NEXT_PUBLIC_SOCKET_URL || new URL(API_URL).origin;
 
 /** Sự kiện server gửi khi bảng thay đổi (chỉ báo, không kèm dữ liệu — client tự tải lại). */
 export interface BoardEvent {
@@ -19,10 +23,20 @@ let refreshing = false;
  */
 export function getSocket() {
   if (socket) return socket;
-  const s = io(`${new URL(API_URL).origin}/realtime`, { withCredentials: true, transports: ['websocket'] });
-  s.on('connect_error', (err) => {
+  const s = io(`${SOCKET_URL}/realtime`, {
+    withCredentials: true,
+    transports: ["websocket"],
+    // Mỗi lần kết nối / kết nối lại: xin token ngắn hạn qua API (khác domain thì socket không có cookie)
+    auth: (cb) => {
+      api<{ token: string }>("/auth/socket-token")
+        .then(({ token }) => cb({ token }))
+        .catch(() => cb({}));
+    },
+  });
+
+  s.on("connect_error", (err) => {
     // Lỗi xác thực: socket.io không tự thử lại → refresh rồi kết nối lại. Lỗi mạng: socket.io tự thử lại.
-    if (err.message !== 'unauthorized' || refreshing) return;
+    if (err.message !== "unauthorized" || refreshing) return;
     refreshing = true;
     void refreshSession()
       .then((ok) => ok && s.connect())
@@ -53,4 +67,5 @@ export function onCardEvent(listener: (event: BoardEvent) => void) {
   };
 }
 
-export const emitCardEvent = (event: BoardEvent) => cardListeners.forEach((listener) => listener(event));
+export const emitCardEvent = (event: BoardEvent) =>
+  cardListeners.forEach((listener) => listener(event));
