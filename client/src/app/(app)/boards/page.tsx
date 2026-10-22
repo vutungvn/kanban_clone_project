@@ -1,36 +1,38 @@
-'use client';
+"use client";
 
-import { ChevronDown, LayoutDashboard, Lock, Plus, Star } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { useAuth } from '@/components/auth-provider';
-import { givenName } from '@/components/avatar';
+import { ChevronDown, LayoutDashboard, Lock, Plus, Star } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useAuth } from "@/components/auth-provider";
+import { givenName } from "@/components/avatar";
 import {
   applyBoardFilter,
   BoardFilterButton,
   countActiveFilters,
   EMPTY_FILTER,
   type BoardFilter,
-} from '@/components/boards/board-filter';
-import { BoardTile, CreateBoardTile } from '@/components/boards/board-tile';
-import { BoardsSidebar } from '@/components/boards/boards-sidebar';
-import { CreateBoardPopover } from '@/components/boards/create-board-popover';
-import { usePopoverAnchor } from '@/components/popover';
-import { boardsStore, compareRecent, useBoardsState } from '@/lib/boards-store';
+} from "@/components/boards/board-filter";
+import { BoardTile, CreateBoardTile } from "@/components/boards/board-tile";
+import { BoardsSidebar } from "@/components/boards/boards-sidebar";
+import { CreateBoardPopover } from "@/components/boards/create-board-popover";
+import { usePopoverAnchor } from "@/components/popover";
+import { boardsStore, compareRecent, useBoardsState } from "@/lib/boards-store";
 
-type SortKey = 'recent' | 'alpha';
+type SortKey = "recent" | "alpha";
 
 export default function BoardsPage() {
   const { user } = useAuth(); // layout đảm bảo đã có user
   const { boards, status: rawStatus, error: loadError } = useBoardsState();
-  const status = rawStatus === 'idle' ? 'loading' : rawStatus;
+  const status = rawStatus === "idle" ? "loading" : rawStatus;
   const createBoard = usePopoverAnchor();
-  const [sort, setSort] = useState<SortKey>('recent');
+  const [sort, setSort] = useState<SortKey>("recent");
   const [filter, setFilter] = useState<BoardFilter>(EMPTY_FILTER);
 
   const visible = useMemo(
     () =>
       applyBoardFilter(boards, filter).sort(
-        sort === 'alpha' ? (a, b) => a.title.localeCompare(b.title, 'vi') : compareRecent,
+        sort === "alpha"
+          ? (a, b) => a.title.localeCompare(b.title, "vi")
+          : compareRecent,
       ),
     [boards, filter, sort],
   );
@@ -55,7 +57,9 @@ export default function BoardsPage() {
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-lg font-semibold tracking-tight">Không gian làm việc của {name}</h1>
+                  <h1 className="text-lg font-semibold tracking-tight">
+                    Không gian làm việc của {name}
+                  </h1>
                   <span className="rounded-full bg-surface-high px-2 py-0.5 text-[11px] font-medium text-brand-hover">
                     Không gian cá nhân
                   </span>
@@ -78,7 +82,10 @@ export default function BoardsPage() {
                   <option value="recent">Xem gần đây nhất</option>
                   <option value="alpha">Tên A–Z</option>
                 </select>
-                <ChevronDown size={16} className="pointer-events-none absolute top-2 right-2 text-ink-subtle" />
+                <ChevronDown
+                  size={16}
+                  className="pointer-events-none absolute top-2 right-2 text-ink-subtle"
+                />
               </div>
               <BoardFilterButton value={filter} onChange={setFilter} />
               <button
@@ -93,7 +100,16 @@ export default function BoardsPage() {
           </header>
 
           {starred.length > 0 && (
-            <BoardSection icon={<Star size={20} className="text-amber-500" fill="currentColor" />} title="Đã đánh dấu sao">
+            <BoardSection
+              icon={
+                <Star
+                  size={20}
+                  className="text-amber-500"
+                  fill="currentColor"
+                />
+              }
+              title="Đã đánh dấu sao"
+            >
               {starred.map((board) => (
                 <BoardTile key={board.id} board={board} />
               ))}
@@ -102,14 +118,18 @@ export default function BoardsPage() {
 
           <BoardSection
             icon={<LayoutDashboard size={20} className="text-ink-subtle" />}
-            title="Bảng của bạn"
+            title="Bảng của bạn 123"
             aside={
-              status !== 'ready' ? undefined : filtering ? `${visible.length}/${boards.length} bảng` : `${boards.length} bảng`
+              status !== "ready"
+                ? undefined
+                : filtering
+                  ? `${visible.length}/${boards.length} bảng`
+                  : `${boards.length} bảng`
             }
             empty={
-              status === 'error' ? (
+              status === "error" ? (
                 <>
-                  {loadError}{' '}
+                  {loadError}{" "}
                   <button
                     type="button"
                     onClick={() => void boardsStore.load(true)}
@@ -120,7 +140,7 @@ export default function BoardsPage() {
                 </>
               ) : filtering && visible.length === 0 ? (
                 <>
-                  Không có bảng nào khớp với bộ lọc.{' '}
+                  Không có bảng nào khớp với bộ lọc.{" "}
                   <button
                     type="button"
                     onClick={() => setFilter(EMPTY_FILTER)}
@@ -132,17 +152,28 @@ export default function BoardsPage() {
               ) : undefined
             }
           >
-            {status === 'loading'
+            {status === "loading"
               ? Array.from({ length: 4 }, (_, i) => (
-                  <div key={i} aria-hidden className="h-24 animate-pulse rounded-lg bg-surface-mid" />
+                  <div
+                    key={i}
+                    aria-hidden
+                    className="h-24 animate-pulse rounded-lg bg-surface-mid"
+                  />
                 ))
-              : visible.map((board) => <BoardTile key={board.id} board={board} />)}
-            {!filtering && status === 'ready' && <CreateBoardTile onClick={createBoard.toggle} />}
+              : visible.map((board) => (
+                  <BoardTile key={board.id} board={board} />
+                ))}
+            {!filtering && status === "ready" && (
+              <CreateBoardTile onClick={createBoard.toggle} />
+            )}
           </BoardSection>
         </div>
       </main>
 
-      <CreateBoardPopover anchor={createBoard.anchor} onClose={createBoard.close} />
+      <CreateBoardPopover
+        anchor={createBoard.anchor}
+        onClose={createBoard.close}
+      />
     </div>
   );
 }
@@ -167,12 +198,18 @@ function BoardSection({
           {icon}
           {title}
         </h2>
-        {aside && <span className="text-sm font-medium text-ink-subtle">{aside}</span>}
+        {aside && (
+          <span className="text-sm font-medium text-ink-subtle">{aside}</span>
+        )}
       </div>
       {empty ? (
-        <div className="rounded-lg bg-surface-low px-4 py-6 text-center text-sm text-ink-subtle">{empty}</div>
+        <div className="rounded-lg bg-surface-low px-4 py-6 text-center text-sm text-ink-subtle">
+          {empty}
+        </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">{children}</div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+          {children}
+        </div>
       )}
     </section>
   );
