@@ -67,6 +67,8 @@ export interface Card {
   dueDate: string | null;
   /** Đã hoàn thành hạn chót */
   dueComplete: boolean;
+  /** Thời điểm lưu trữ — thẻ trên bảng luôn là null */
+  archivedAt: string | null;
   /** ID nhãn — chi tiết ở `board.labels` */
   labelIds: string[];
   /** ID thành viên được giao — chi tiết ở `board.members` */
@@ -91,7 +93,10 @@ export type ActivityType =
   | 'CHECKLIST_ADDED'
   | 'CHECKLIST_REMOVED'
   | 'CHECKLIST_ITEM_COMPLETED'
-  | 'CHECKLIST_ITEM_UNCOMPLETED';
+  | 'CHECKLIST_ITEM_UNCOMPLETED'
+  | 'CARD_ARCHIVED'
+  | 'CARD_RESTORED'
+  | 'CARD_COPIED';
 
 /**
  * Một mục trong lịch sử hoạt động của thẻ. Bình luận là type COMMENT (nội dung ở `text`).
@@ -125,9 +130,35 @@ export interface List {
   boardId: string;
   title: string;
   position: number;
+  /** Thời điểm lưu trữ — danh sách trên bảng luôn là null */
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   cards: Card[];
+}
+
+/** Thẻ kèm tên danh sách — dùng cho thẻ không có trên bảng (đã lưu trữ, nằm trong danh sách đã lưu trữ). */
+export interface CardWithList extends Card {
+  listTitle: string;
+  listArchived: boolean;
+}
+
+/** Mục "Đã lưu trữ" của bảng */
+export interface BoardArchive {
+  cards: CardWithList[];
+  lists: (Omit<List, 'cards'> & { cardCount: number })[];
+}
+
+/** Sao chép thẻ: phần nào được giữ (mô tả luôn giữ) */
+export interface CopyCardInput {
+  title: string;
+  listId: string;
+  /** Vị trí trong danh sách đích, tính từ 0 */
+  index: number;
+  keepLabels: boolean;
+  keepMembers: boolean;
+  keepChecklists: boolean;
+  keepDates: boolean;
 }
 
 export interface BoardDetail extends BoardSummary {
@@ -177,6 +208,8 @@ export const boardsApi = {
   remove: (boardId: string) => api<void>(`/boards/${id(boardId)}`, send('DELETE')),
   setStarred: (boardId: string, starred: boolean) =>
     api<{ starred: boolean }>(`/boards/${id(boardId)}/star`, send('PUT', { starred })),
+  /** Thẻ + danh sách đã lưu trữ */
+  archive: (boardId: string) => api<BoardArchive>(`/boards/${id(boardId)}/archive`),
 };
 
 export const membersApi = {
@@ -234,9 +267,22 @@ export const listsApi = {
   /** index: vị trí mới trong bảng (không tính chính danh sách đó) — server tự tính position */
   move: (listId: string, index: number) =>
     api<{ list: List }>(`/lists/${id(listId)}/move`, send('PATCH', { index })).then((r) => r.list),
+  setArchived: (listId: string, archived: boolean) =>
+    api<{ list: List }>(`/lists/${id(listId)}/${archived ? 'archive' : 'restore'}`, send('POST')).then((r) => r.list),
+  /** Lưu trữ mọi thẻ đang hiện trong danh sách */
+  archiveCards: (listId: string) => api<{ count: number }>(`/lists/${id(listId)}/archive-cards`, send('POST')),
+  /** Bản sao đặt ngay bên phải, kèm mọi thẻ */
+  copy: (listId: string, title: string) =>
+    api<{ list: List }>(`/lists/${id(listId)}/copy`, send('POST', { title })).then((r) => r.list),
 };
 
 export const cardsApi = {
+  /** Kể cả thẻ đã lưu trữ */
+  get: (cardId: string) => api<{ card: CardWithList }>(`/cards/${id(cardId)}`).then((r) => r.card),
+  setArchived: (cardId: string, archived: boolean) =>
+    api<{ card: CardWithList }>(`/cards/${id(cardId)}/${archived ? 'archive' : 'restore'}`, send('POST')).then((r) => r.card),
+  copy: (cardId: string, input: CopyCardInput) =>
+    api<{ card: Card }>(`/cards/${id(cardId)}/copy`, send('POST', input)).then((r) => r.card),
   create: (listId: string, title: string) =>
     api<{ card: Card }>(`/lists/${id(listId)}/cards`, send('POST', { title })).then((r) => r.card),
   update: (cardId: string, input: CardInput) =>

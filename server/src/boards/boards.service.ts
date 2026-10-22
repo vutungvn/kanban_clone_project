@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { BOARD_NOT_FOUND, BoardAccessService } from './board-access.service';
 import { DEFAULT_LABEL_COLORS } from './boards.constants';
-import { byPosition, listInclude, toList } from './card-shape';
+import { byPosition, cardInclude, listInclude, notArchived, toCard, toList } from './card-shape';
 import type { CreateBoardDto, UpdateBoardDto } from './dto/board.dto';
 
 export const memberUserSelect = { id: true, name: true, email: true, avatarUrl: true } as const satisfies Prisma.UserSelect;
@@ -24,7 +24,7 @@ const withMembers = {
 const withListsAndCards = {
   ...withMembers,
   labels: { orderBy: { createdAt: 'asc' } },
-  lists: { orderBy: byPosition, include: listInclude },
+  lists: { where: notArchived, orderBy: byPosition, include: listInclude },
 } as const satisfies Prisma.BoardInclude;
 
 type BoardWithMembers = Prisma.BoardGetPayload<{ include: typeof withMembers }>;
@@ -106,6 +106,28 @@ export class BoardsService {
     await this.access.require(boardId, userId, BoardRole.ADMIN);
     await this.prisma.board.delete({ where: { id: boardId } });
     this.realtime.boardDeleted(boardId);
+  }
+
+  /** Mục đã lưu trữ của bảng: thẻ lưu trữ riêng lẻ + danh sách lưu trữ. Mọi vai trò đều xem được. */
+  async archive(boardId: string, userId: string) {
+    await this.access.require(boardId, userId);
+    const archived = { not: null };
+    const [cards, lists] = await Promise.all([
+      this.prisma.card.findMany({
+        where: { archivedAt: archived, list: { boardId } },
+        orderBy: { archivedAt: 'desc' },
+        include: { ...cardInclude, list: { select: { title: true, archivedAt: true } } },
+      }),
+      this.prisma.list.findMany({
+        where: { boardId, archivedAt: archived },
+        orderBy: { archivedAt: 'desc' },
+        include: { _count: { select: { cards: { where: notArchived } } } },
+      }),
+    ]);
+    return {
+      cards: cards.map(({ list, ...card }) => ({ ...toCard(card), listTitle: list.title, listArchived: !!list.archivedAt })),
+      lists: lists.map(({ _count, ...list }) => ({ ...list, cardCount: _count.cards })),
+    };
   }
 
   async setStarred(boardId: string, userId: string, starred: boolean) {

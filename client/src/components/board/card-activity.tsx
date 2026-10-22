@@ -59,6 +59,7 @@ const activitySignature = (card: Card) =>
     card.startDate,
     card.dueDate,
     card.dueComplete,
+    card.archivedAt,
     card.checklists.map((c) => [c.id, c.items.map((i) => i.completed)]),
   ]);
 
@@ -195,11 +196,22 @@ function useCardActivity(card: Card, filter: ActivityFilter, actions: BoardActio
 
 // ---------- Mục "Hoạt động" trong modal ----------
 
-export function CardActivity({ board, card, actions }: { board: BoardDetail; card: Card; actions: BoardActions }) {
+export function CardActivity({
+  board,
+  card,
+  actions,
+  readOnly = false,
+}: {
+  board: BoardDetail;
+  card: Card;
+  actions: BoardActions;
+  /** Thẻ đã lưu trữ: chỉ xem, không bình luận / sửa / xoá */
+  readOnly?: boolean;
+}) {
   const { user } = useAuth();
   const [showDetails, toggleDetails] = useShowDetails();
   const activity = useCardActivity(card, showDetails ? 'all' : 'comments', actions);
-  const canComment = board.role !== 'VIEWER';
+  const canComment = board.role !== 'VIEWER' && !readOnly;
   const isAdmin = board.role === 'ADMIN';
   // Gợi ý nhắc tên: mọi thành viên của bảng trừ chính mình
   const mentionable = board.members.filter((m) => m.id !== user?.id);
@@ -653,6 +665,16 @@ function describe(activity: Activity, board: BoardDetail): ReactNode {
       return (
         <>
           đã đánh dấu {quote(d.title)} là chưa hoàn thành trong {quote(d.checklist)}
+        </>
+      );
+    case 'CARD_ARCHIVED':
+      return <>đã lưu trữ thẻ này</>;
+    case 'CARD_RESTORED':
+      return <>đã khôi phục thẻ này</>;
+    case 'CARD_COPIED':
+      return (
+        <>
+          đã sao chép thẻ này từ {quote(d.sourceTitle)} vào danh sách {quote(d.listTitle)}
         </>
       );
     default:

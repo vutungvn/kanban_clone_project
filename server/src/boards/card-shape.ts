@@ -21,9 +21,12 @@ export const toCard = ({ labels, members, _count, ...card }: CardWithRelations) 
   commentCount: _count.activities,
 });
 
-/** Danh sách kèm thẻ đã sắp xếp. */
+/** Lọc bỏ thẻ / danh sách đã lưu trữ. */
+export const notArchived = { archivedAt: null } as const;
+
+/** Danh sách kèm thẻ (chưa lưu trữ) đã sắp xếp. */
 export const listInclude = {
-  cards: { orderBy: byPosition, include: cardInclude },
+  cards: { where: notArchived, orderBy: byPosition, include: cardInclude },
 } as const satisfies Prisma.ListInclude;
 
 type ListWithCards = Prisma.ListGetPayload<{ include: typeof listInclude }>;

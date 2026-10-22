@@ -6,8 +6,9 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { ActivitiesService } from './activities.service';
 import { BoardAccessService } from './board-access.service';
 import { CARD_NOT_FOUND, POSITION_GAP } from './boards.constants';
-import { byPosition, cardInclude, toCard } from './card-shape';
-import type { CreateCardDto, MoveCardDto, UpdateCardDto } from './dto/card.dto';
+import { copyCard, copySourceInclude } from './card-copy';
+import { byPosition, cardInclude, notArchived, toCard } from './card-shape';
+import type { CopyCardDto, CreateCardDto, MoveCardDto, UpdateCardDto } from './dto/card.dto';
 import { LIST_NOT_FOUND } from './lists.service';
 import { placeAt } from './position';
 
@@ -39,7 +40,7 @@ export class CardsService {
   /** Báo cho những người đang được giao thẻ (trừ người thao tác). */
   private async notifyAssignees(cardId: string, actorId: string, type: NotificationType, data: Prisma.InputJsonObject = {}) {
     const ctx = await this.notifications.cardContext(cardId);
-    if (!ctx) return;
+    if (!ctx || ctx.archived) return;
     await this.notifications.notify(
       ctx.assigneeIds.map((userId) => ({ userId, actorId, type, boardId: ctx.boardId, cardId, data: { ...ctx.data, ...data } })),
     );
@@ -47,8 +48,11 @@ export class CardsService {
 
   /** Thêm thẻ vào cuối danh sách. */
   async create(listId: string, userId: string, dto: CreateCardDto) {
-    const list = await this.prisma.list.findUnique({ where: { id: listId }, select: { boardId: true, title: true } });
-    if (!list) throw new NotFoundException(LIST_NOT_FOUND);
+    const list = await this.prisma.list.findUnique({
+      where: { id: listId },
+      select: { boardId: true, title: true, archivedAt: true },
+    });
+    if (!list || list.archivedAt) throw new NotFoundException(LIST_NOT_FOUND);
     await this.access.require(list.boardId, userId, BoardRole.MEMBER, LIST_NOT_FOUND);
 
     const { _max } = await this.prisma.card.aggregate({ where: { listId }, _max: { position: true } });
@@ -121,13 +125,11 @@ export class CardsService {
   /** Kéo thả: chuyển thẻ tới vị trí `index` của danh sách `listId` (cùng bảng). Sang danh sách khác thì ghi lịch sử. */
   async move(cardId: string, userId: string, dto: MoveCardDto) {
     const current = await this.requireEditable(cardId, userId);
-    const target = await this.prisma.list.findUnique({ where: { id: dto.listId }, select: { boardId: true, title: true } });
-    // Chỉ cho chuyển trong cùng bảng; list của bảng khác coi như không tồn tại
-    if (!target || target.boardId !== current.boardId) throw new NotFoundException(LIST_NOT_FOUND);
+    const target = await this.requireTargetList(dto.listId, current.boardId);
 
     const card = await this.prisma.$transaction(async (tx) => {
       const siblings = await tx.card.findMany({
-        where: { listId: dto.listId, NOT: { id: cardId } },
+        where: { listId: dto.listId, NOT: { id: cardId }, ...notArchived },
         orderBy: byPosition,
         select: { id: true, position: true },
       });
@@ -160,6 +162,75 @@ export class CardsService {
         toList: target.title,
       });
     }
+    return card;
+  }
+
+  /** Chi tiết 1 thẻ (kể cả đã lưu trữ) — mở thẻ qua link khi thẻ không có trên bảng. Mọi vai trò. */
+  async findOne(cardId: string, userId: string) {
+    const card = await this.prisma.card.findUnique({
+      where: { id: cardId },
+      include: { ...cardInclude, list: { select: { boardId: true, title: true, archivedAt: true } } },
+    });
+    if (!card) throw new NotFoundException(CARD_NOT_FOUND);
+    await this.access.require(card.list.boardId, userId, BoardRole.VIEWER, CARD_NOT_FOUND);
+    const { list, ...rest } = card;
+    return { ...toCard(rest), listTitle: list.title, listArchived: !!list.archivedAt };
+  }
+
+  /** Lưu trữ / khôi phục thẻ. Thẻ giữ nguyên vị trí nên khôi phục là về đúng chỗ cũ. */
+  async setArchived(cardId: string, userId: string, archived: boolean) {
+    const current = await this.requireEditable(cardId, userId);
+    if (!!current.archivedAt === archived) return this.findOne(cardId, userId);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.card.update({ where: { id: cardId }, data: { archivedAt: archived ? new Date() : null } });
+      await this.activities.log(tx, {
+        boardId: current.boardId,
+        cardId,
+        userId,
+        type: archived ? ActivityType.CARD_ARCHIVED : ActivityType.CARD_RESTORED,
+        data: { listTitle: current.listTitle },
+      });
+    });
+    this.realtime.boardChanged(current.boardId, cardId);
+    return this.findOne(cardId, userId);
+  }
+
+  /**
+   * Sao chép thẻ sang vị trí `index` của danh sách `listId` (cùng bảng). Mô tả luôn được giữ;
+   * nhãn / thành viên / checklist / ngày tuỳ chọn; bình luận và lịch sử thì không.
+   */
+  async copy(cardId: string, userId: string, dto: CopyCardDto) {
+    const current = await this.requireEditable(cardId, userId);
+    const target = await this.requireTargetList(dto.listId, current.boardId);
+    const source = await this.prisma.card.findUniqueOrThrow({ where: { id: cardId }, include: copySourceInclude });
+
+    const card = await this.prisma.$transaction(async (tx) => {
+      const siblings = await tx.card.findMany({
+        where: { listId: dto.listId, ...notArchived },
+        orderBy: byPosition,
+        select: { id: true, position: true },
+      });
+      const placeholder = 'new-card';
+      const { position, rebalanced } = placeAt(siblings, dto.index, placeholder);
+      for (const item of rebalanced ?? []) {
+        if (item.id !== placeholder) await tx.card.update({ where: { id: item.id }, data: { position: item.position } });
+      }
+      const card = await copyCard(tx, source, {
+        listId: dto.listId,
+        position,
+        title: dto.title,
+        keep: { labels: dto.keepLabels, members: dto.keepMembers, checklists: dto.keepChecklists, dates: dto.keepDates },
+      });
+      await this.activities.log(tx, {
+        boardId: current.boardId,
+        cardId: card.id,
+        userId,
+        type: ActivityType.CARD_COPIED,
+        data: { sourceTitle: current.title, listTitle: target.title },
+      });
+      return toCard(card);
+    });
+    this.realtime.boardChanged(current.boardId, card.id);
     return card;
   }
 
@@ -278,6 +349,14 @@ export class CardsService {
     if (removed) await this.notifyOne(cardId, actorId, memberId, NotificationType.CARD_UNASSIGNED);
   }
 
+  /** Danh sách đích khi kéo thả / sao chép: phải cùng bảng và chưa lưu trữ. */
+  private async requireTargetList(listId: string, boardId: string) {
+    const list = await this.prisma.list.findUnique({ where: { id: listId }, select: { boardId: true, title: true, archivedAt: true } });
+    // List của bảng khác / đã lưu trữ coi như không tồn tại
+    if (!list || list.boardId !== boardId || list.archivedAt) throw new NotFoundException(LIST_NOT_FOUND);
+    return list;
+  }
+
   /** Kiểm tra quyền sửa thẻ, trả về bảng / danh sách chứa thẻ + các giá trị cần so khi ghi lịch sử. */
   private async requireEditable(cardId: string, userId: string) {
     const card = await this.prisma.card.findUnique({
@@ -287,6 +366,7 @@ export class CardsService {
         startDate: true,
         dueDate: true,
         dueComplete: true,
+        archivedAt: true,
         listId: true,
         list: { select: { boardId: true, title: true } },
       },

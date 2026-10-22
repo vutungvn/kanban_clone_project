@@ -19,6 +19,7 @@ import {
   type BoardRole,
   type Card,
   type CardInput,
+  type CopyCardInput,
   type Checklist,
   type ChecklistItem,
   type List,
@@ -453,6 +454,66 @@ export function useBoard(boardId: string) {
             })),
           () => checklistsApi.removeItem(itemId),
         ),
+
+      /** Lưu trữ thẻ: biến khỏi bảng ngay (vẫn mở được qua link / mục "Đã lưu trữ"). */
+      archiveCard: (cardId: string) =>
+        optimistic(
+          (b) => ({ ...b, lists: b.lists.map((l) => ({ ...l, cards: l.cards.filter((c) => c.id !== cardId) })) }),
+          () => cardsApi.setArchived(cardId, true),
+        ),
+
+      /** Khôi phục thẻ: chờ API rồi tải lại bảng (thẻ về đúng vị trí cũ). Lỗi ném ra cho nơi gọi. */
+      restoreCard: async (cardId: string) => {
+        await create(() => cardsApi.setArchived(cardId, false));
+        resync();
+      },
+
+      /** Sao chép thẻ — chờ API (cần id thật) rồi chèn vào đúng vị trí. Lỗi ném ra để hiện trong popover. */
+      copyCard: async (cardId: string, input: CopyCardInput) => {
+        const card = await create(() => cardsApi.copy(cardId, input));
+        const current = boardRef.current;
+        if (current) {
+          commit(
+            mapList(current, input.listId, (l) => {
+              const cards = [...l.cards];
+              cards.splice(Math.min(input.index, cards.length), 0, card);
+              return { ...l, cards };
+            }),
+          );
+        }
+        return card;
+      },
+
+      archiveList: (listId: string) =>
+        optimistic(
+          (b) => ({ ...b, lists: b.lists.filter((l) => l.id !== listId) }),
+          () => listsApi.setArchived(listId, true),
+        ),
+
+      restoreList: async (listId: string) => {
+        await create(() => listsApi.setArchived(listId, false));
+        resync();
+      },
+
+      /** Lưu trữ mọi thẻ trong danh sách (danh sách vẫn giữ). */
+      archiveAllCards: (listId: string) =>
+        optimistic(
+          (b) => mapList(b, listId, (l) => ({ ...l, cards: [] })),
+          () => listsApi.archiveCards(listId),
+        ),
+
+      /** Sao chép danh sách — bản sao (kèm thẻ) nằm ngay bên phải bản gốc. */
+      copyList: async (listId: string, title: string) => {
+        const list = await create(() => listsApi.copy(listId, title));
+        const current = boardRef.current;
+        if (current) {
+          const lists = [...current.lists];
+          const at = lists.findIndex((l) => l.id === listId);
+          lists.splice(at < 0 ? lists.length : at + 1, 0, list);
+          commit({ ...current, lists });
+        }
+        return list;
+      },
 
       deleteCard: (cardId: string) =>
         optimistic(

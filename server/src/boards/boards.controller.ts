@@ -14,6 +14,7 @@ import { ApiAuth, ApiForbidden, ApiNotFound, ApiValidationError } from '../commo
 import { BOARD_NOT_FOUND } from './board-access.service';
 import { BoardsService } from './boards.service';
 import {
+  BoardArchiveResponseDto,
   BoardDetailResponseDto,
   BoardsResponseDto,
   BoardSummaryResponseDto,
@@ -82,6 +83,18 @@ export class BoardsController {
   @Delete(':id')
   async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     await this.boards.remove(id, user.id);
+  }
+
+  @ApiOperation({
+    summary: 'Mục đã lưu trữ',
+    description: 'Thẻ lưu trữ riêng lẻ và danh sách đã lưu trữ của bảng (mới nhất trước). Mọi vai trò đều xem được.',
+  })
+  @ApiParam({ name: 'id', description: 'ID bảng' })
+  @ApiOkResponse({ type: BoardArchiveResponseDto })
+  @ApiNotFound(BOARD_NOT_FOUND)
+  @Get(':id/archive')
+  archive(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.boards.archive(id, user.id);
   }
 
   @ApiOperation({ summary: 'Đánh dấu / bỏ đánh dấu sao', description: 'Trạng thái sao là riêng của từng user.' })

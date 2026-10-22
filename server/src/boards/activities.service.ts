@@ -47,7 +47,7 @@ export class ActivitiesService {
    */
   private async notifyComment(cardId: string, actorId: string, text: string, previousText?: string) {
     const ctx = await this.notifications.cardContext(cardId);
-    if (!ctx) return;
+    if (!ctx || ctx.archived) return;
     const mentioned = findMentions(text, ctx.boardMembers);
     if (previousText !== undefined) {
       for (const id of findMentions(previousText, ctx.boardMembers)) mentioned.delete(id);
@@ -64,6 +64,10 @@ export class ActivitiesService {
 
   log(db: Db, input: ActivityInput) {
     return db.activity.create({ data: input });
+  }
+
+  logMany(db: Db, inputs: ActivityInput[]) {
+    return db.activity.createMany({ data: inputs });
   }
 
   /** Mới nhất trước, phân trang theo cursor (id). Mọi thành viên của bảng đều xem được. */

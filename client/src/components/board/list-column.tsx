@@ -3,9 +3,11 @@
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { MoreHorizontal, Plus } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Popover, PopoverHeader, usePopoverAnchor } from '@/components/popover';
+import { toast } from '@/components/toast';
 import { ComingSoonBadge } from '@/components/ui';
+import { errorMessage } from '@/lib/api';
 import type { List } from '@/lib/boards-api';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
@@ -119,19 +121,17 @@ export function ListColumn({
           </button>
         ))}
 
-      <ListMenu
-        list={list}
-        anchor={menu.anchor}
-        onClose={menu.close}
-        onAddCard={() => {
-          menu.close();
-          setComposerOpen(true);
-        }}
-        onDelete={() => {
-          menu.close();
-          void actions.deleteList(list.id);
-        }}
-      />
+      <Popover anchor={menu.anchor} onClose={menu.close} label="Thao tác với danh sách">
+        <ListMenuContent
+          list={list}
+          actions={actions}
+          onClose={menu.close}
+          onAddCard={() => {
+            menu.close();
+            setComposerOpen(true);
+          }}
+        />
+      </Popover>
     </section>
   );
 }
@@ -155,53 +155,65 @@ export function ListPreview({ list }: { list: List }) {
   );
 }
 
-const MENU_ITEM ='flex w-full items-center rounded px-2.5 py-1.5 text-left text-sm transition-colors';
+const MENU_ITEM = 'flex w-full items-center rounded px-2.5 py-1.5 text-left text-sm transition-colors';
 
-function ListMenu({
-  list,
-  anchor,
-  onClose,
-  onAddCard,
-  onDelete,
-}: {
-  list: List;
-  anchor: HTMLElement | null;
-  onClose: () => void;
-  onAddCard: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <Popover anchor={anchor} onClose={onClose} label="Thao tác với danh sách">
-      <ListMenuContent list={list} onClose={onClose} onAddCard={onAddCard} onDelete={onDelete} />
-    </Popover>
-  );
-}
+type MenuView = 'menu' | 'copy' | 'archive-cards' | 'delete';
 
+/** Menu "..." của danh sách: thêm thẻ, sao chép, lưu trữ, xoá (mỗi thao tác nguy hiểm có bước xác nhận). */
 function ListMenuContent({
   list,
+  actions,
   onClose,
   onAddCard,
-  onDelete,
 }: {
   list: List;
+  actions: BoardActions;
   onClose: () => void;
   onAddCard: () => void;
-  onDelete: () => void;
 }) {
-  const [confirming, setConfirming] = useState(false);
+  const [view, setView] = useState<MenuView>('menu');
+  const back = () => setView('menu');
+  const count = list.cards.length;
 
-  if (confirming) {
-    const count = list.cards.length;
+  if (view === 'copy') return <CopyListForm list={list} actions={actions} onBack={back} onClose={onClose} />;
+
+  if (view === 'archive-cards') {
     return (
       <>
-        <PopoverHeader title="Xoá danh sách?" onClose={onClose} />
+        <PopoverHeader title="Lưu trữ mọi thẻ?" onClose={onClose} onBack={back} />
         <p className="px-1 text-sm text-ink-subtle">
-          Danh sách <strong className="text-ink">&quot;{list.title}&quot;</strong>
-          {count > 0 && <> cùng {count} thẻ bên trong</>} sẽ bị xoá vĩnh viễn và không thể khôi phục.
+          {count} thẻ trong danh sách <strong className="text-ink">&quot;{list.title}&quot;</strong> sẽ biến khỏi bảng. Bạn có
+          thể khôi phục trong Menu → Mục đã lưu trữ.
         </p>
         <button
           type="button"
-          onClick={onDelete}
+          onClick={() => {
+            onClose();
+            void actions.archiveAllCards(list.id);
+          }}
+          className="mt-3 h-9 w-full rounded bg-brand text-sm font-medium text-white transition-colors hover:bg-brand-hover"
+        >
+          Lưu trữ tất cả
+        </button>
+      </>
+    );
+  }
+
+  if (view === 'delete') {
+    return (
+      <>
+        <PopoverHeader title="Xoá danh sách?" onClose={onClose} onBack={back} />
+        <p className="px-1 text-sm text-ink-subtle">
+          Danh sách <strong className="text-ink">&quot;{list.title}&quot;</strong>
+          {count > 0 && <> cùng {count} thẻ bên trong</>} sẽ bị xoá vĩnh viễn và không thể khôi phục. Muốn ẩn tạm thời thì
+          hãy lưu trữ.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            void actions.deleteList(list.id);
+          }}
           className="mt-3 h-9 w-full rounded bg-danger text-sm font-medium text-white transition-opacity hover:opacity-90"
         >
           Xoá danh sách
@@ -216,16 +228,104 @@ function ListMenuContent({
       <button type="button" onClick={onAddCard} className={`${MENU_ITEM} hover:bg-list`}>
         Thêm thẻ...
       </button>
-      {['Sao chép danh sách...', 'Di chuyển danh sách...'].map((label) => (
-        <UpcomingItem key={label} label={label} />
-      ))}
+      <button type="button" onClick={() => setView('copy')} className={`${MENU_ITEM} hover:bg-list`}>
+        Sao chép danh sách...
+      </button>
+      <UpcomingItem label="Di chuyển danh sách..." />
       <hr className="my-1.5 border-surface-high" />
       <UpcomingItem label="Sắp xếp theo..." />
       <hr className="my-1.5 border-surface-high" />
-      <UpcomingItem label="Lưu trữ danh sách này" />
-      <button type="button" onClick={() => setConfirming(true)} className={`${MENU_ITEM} text-danger hover:bg-danger-soft/40`}>
+      <button
+        type="button"
+        onClick={() => {
+          onClose();
+          void actions.archiveList(list.id);
+          toast.success(`Đã lưu trữ danh sách "${list.title}". Khôi phục trong Menu → Mục đã lưu trữ.`);
+        }}
+        className={`${MENU_ITEM} hover:bg-list`}
+      >
+        Lưu trữ danh sách này
+      </button>
+      <button
+        type="button"
+        disabled={count === 0}
+        onClick={() => setView('archive-cards')}
+        className={`${MENU_ITEM} hover:bg-list disabled:cursor-not-allowed disabled:text-ink/50 disabled:hover:bg-transparent`}
+      >
+        Lưu trữ mọi thẻ trong danh sách này...
+      </button>
+      <button type="button" onClick={() => setView('delete')} className={`${MENU_ITEM} text-danger hover:bg-danger-soft/40`}>
         Xoá danh sách này
       </button>
+    </>
+  );
+}
+
+/** Sao chép danh sách: nhập tên (mặc định tên cũ) → bản sao kèm mọi thẻ nằm ngay bên phải. */
+function CopyListForm({
+  list,
+  actions,
+  onBack,
+  onClose,
+}: {
+  list: List;
+  actions: BoardActions;
+  onBack: () => void;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState(list.title);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const value = title.trim();
+    if (!value) return setError('Vui lòng nhập tên danh sách');
+    setPending(true);
+    try {
+      await actions.copyList(list.id, value);
+      onClose();
+      toast.success(`Đã sao chép danh sách "${list.title}"`);
+    } catch (err) {
+      setError(errorMessage(err));
+      setPending(false);
+    }
+  }
+
+  return (
+    <>
+      <PopoverHeader title="Sao chép danh sách" onClose={onClose} onBack={onBack} />
+      <form noValidate onSubmit={submit} className="flex flex-col gap-2">
+        <label className="flex flex-col gap-1 text-xs font-semibold text-ink-subtle">
+          Tên
+          <input
+            autoFocus
+            value={title}
+            maxLength={100}
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              setError(null);
+            }}
+            className="h-9 w-full rounded bg-white px-2.5 text-sm font-normal text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]"
+          />
+        </label>
+        <p className="text-xs text-ink-subtle">
+          {list.cards.length > 0 ? `Sao chép kèm ${list.cards.length} thẻ (nhãn, thành viên, checklist, ngày).` : 'Danh sách đang trống.'}
+        </p>
+        {error && (
+          <p role="alert" className="text-xs font-medium text-danger">
+            {error}
+          </p>
+        )}
+        <button
+          type="submit"
+          disabled={pending}
+          className="h-9 w-full rounded bg-brand text-sm font-medium text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
+        >
+          {pending ? 'Đang sao chép...' : 'Tạo danh sách'}
+        </button>
+      </form>
     </>
   );
 }

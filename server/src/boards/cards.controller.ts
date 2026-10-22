@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, HttpCode, HttpStatus, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import {
   ApiCreatedResponse,
   ApiNoContentResponse,
@@ -12,7 +12,14 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiAuth, ApiForbidden, ApiNotFound, ApiValidationError } from '../common/swagger/api-responses';
 import { CARD_NOT_FOUND, CardsService, LABEL_NOT_FOUND, NO_DUE_DATE, NOT_BOARD_MEMBER, START_AFTER_DUE } from './cards.service';
-import { CardResponseDto, CreateCardDto, MoveCardDto, UpdateCardDto } from './dto/card.dto';
+import {
+  CardResponseDto,
+  CardWithListResponseDto,
+  CopyCardDto,
+  CreateCardDto,
+  MoveCardDto,
+  UpdateCardDto,
+} from './dto/card.dto';
 import { LIST_NOT_FOUND } from './lists.service';
 
 const VIEWER_FORBIDDEN = 'Bạn chỉ có quyền xem bảng này';
@@ -65,6 +72,56 @@ export class CardsController {
   @Patch('cards/:id/move')
   async move(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: MoveCardDto) {
     return { card: await this.cards.move(id, user.id, dto) };
+  }
+
+  @ApiOperation({
+    summary: 'Chi tiết thẻ',
+    description: 'Kể cả thẻ đã lưu trữ (không có trong dữ liệu bảng) — dùng khi mở thẻ qua link. Mọi vai trò.',
+  })
+  @ApiParam({ name: 'id', description: 'ID thẻ' })
+  @ApiOkResponse({ type: CardWithListResponseDto })
+  @ApiNotFound(CARD_NOT_FOUND)
+  @Get('cards/:id')
+  async findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return { card: await this.cards.findOne(id, user.id) };
+  }
+
+  @ApiOperation({ summary: 'Lưu trữ thẻ', description: 'Ẩn khỏi bảng, giữ nguyên dữ liệu và vị trí. Đã lưu trữ rồi thì không làm gì.' })
+  @ApiParam({ name: 'id', description: 'ID thẻ' })
+  @ApiOkResponse({ type: CardWithListResponseDto })
+  @ApiForbidden(VIEWER_FORBIDDEN)
+  @ApiNotFound(CARD_NOT_FOUND)
+  @HttpCode(HttpStatus.OK)
+  @Post('cards/:id/archive')
+  async archive(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return { card: await this.cards.setArchived(id, user.id, true) };
+  }
+
+  @ApiOperation({ summary: 'Khôi phục thẻ', description: 'Đưa thẻ đã lưu trữ về đúng vị trí cũ trong danh sách.' })
+  @ApiParam({ name: 'id', description: 'ID thẻ' })
+  @ApiOkResponse({ type: CardWithListResponseDto })
+  @ApiForbidden(VIEWER_FORBIDDEN)
+  @ApiNotFound(CARD_NOT_FOUND)
+  @HttpCode(HttpStatus.OK)
+  @Post('cards/:id/restore')
+  async restore(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return { card: await this.cards.setArchived(id, user.id, false) };
+  }
+
+  @ApiOperation({
+    summary: 'Sao chép thẻ',
+    description:
+      'Tạo thẻ mới ở vị trí `index` của danh sách `listId` (cùng bảng). Mô tả luôn được giữ; ' +
+      'nhãn / thành viên / checklist / ngày tuỳ chọn (mặc định giữ hết); không sao chép bình luận.',
+  })
+  @ApiParam({ name: 'id', description: 'ID thẻ gốc' })
+  @ApiCreatedResponse({ type: CardResponseDto })
+  @ApiValidationError(['Vui lòng nhập tiêu đề thẻ', 'Vui lòng chọn danh sách đích'])
+  @ApiForbidden(VIEWER_FORBIDDEN)
+  @ApiNotFound(CARD_NOT_FOUND, 'Thẻ không tồn tại, danh sách đích không thuộc cùng bảng / đã lưu trữ, hoặc bạn không phải thành viên')
+  @Post('cards/:id/copy')
+  async copy(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: CopyCardDto) {
+    return { card: await this.cards.copy(id, user.id, dto) };
   }
 
   @ApiOperation({ summary: 'Xoá thẻ' })

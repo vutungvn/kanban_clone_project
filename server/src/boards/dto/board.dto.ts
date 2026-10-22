@@ -1,9 +1,10 @@
-import { ApiProperty, PartialType } from '@nestjs/swagger';
+import { ApiProperty, OmitType, PartialType } from '@nestjs/swagger';
 import { BoardRole } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsIn, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { trimString } from '../../common/transforms';
 import { BOARD_BACKGROUNDS, MAX_BOARD_TITLE, type BoardBackground } from '../boards.constants';
+import { CardWithListDto } from './card.dto';
 import { LabelDto } from './label.dto';
 import { ListDto } from './list.dto';
 
@@ -91,6 +92,19 @@ export class BoardDetailDto extends BoardSummaryDto {
 
   @ApiProperty({ type: [ListDto], description: 'Các danh sách kèm thẻ, đã sắp theo position' })
   lists: ListDto[];
+}
+
+export class ArchivedListDto extends OmitType(ListDto, ['cards'] as const) {
+  @ApiProperty({ example: 4, description: 'Số thẻ (chưa lưu trữ) trong danh sách' })
+  cardCount: number;
+}
+
+export class BoardArchiveResponseDto {
+  @ApiProperty({ type: [CardWithListDto], description: 'Thẻ đã lưu trữ, mới lưu trữ trước' })
+  cards: CardWithListDto[];
+
+  @ApiProperty({ type: [ArchivedListDto], description: 'Danh sách đã lưu trữ, mới lưu trữ trước' })
+  lists: ArchivedListDto[];
 }
 
 export class BoardsResponseDto {

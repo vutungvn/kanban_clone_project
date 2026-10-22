@@ -14,8 +14,11 @@ export class CreateListDto {
   title: string;
 }
 
-/** Hiện chỉ đổi được tên; sẽ thêm trường khi có lưu trữ. */
+/** Hiện chỉ đổi được tên. */
 export class UpdateListDto extends CreateListDto {}
+
+/** Tên của danh sách bản sao. */
+export class CopyListDto extends CreateListDto {}
 
 export class MoveListDto {
   @ApiProperty({
@@ -41,6 +44,9 @@ export class ListDto {
   @ApiProperty({ example: 1024, description: 'Thứ tự trong bảng (tăng dần)' })
   position: number;
 
+  @ApiProperty({ type: String, format: 'date-time', nullable: true, example: null, description: 'Thời điểm lưu trữ; null = đang hiện trên bảng' })
+  archivedAt: Date | null;
+
   @ApiProperty({ type: String, format: 'date-time', example: '2026-01-15T08:30:00.000Z' })
   createdAt: Date;
 
@@ -54,4 +60,9 @@ export class ListDto {
 export class ListResponseDto {
   @ApiProperty({ type: ListDto })
   list: ListDto;
+}
+
+export class ArchiveCountDto {
+  @ApiProperty({ example: 3, description: 'Số thẻ vừa được lưu trữ' })
+  count: number;
 }

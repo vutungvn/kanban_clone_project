@@ -8,6 +8,7 @@ import {
   Copy,
   CreditCard,
   ImageIcon,
+  RotateCcw,
   Paperclip,
   Plus,
   SquareCheck,
@@ -25,11 +26,13 @@ import { Modal, ModalCloseButton } from '@/components/modal';
 import { Popover, PopoverHeader, usePopoverAnchor } from '@/components/popover';
 import { toast } from '@/components/toast';
 import { ComingSoonBadge } from '@/components/ui';
-import type { BoardDetail, Card, List } from '@/lib/boards-api';
+import { ApiError, errorMessage } from '@/lib/api';
+import { cardsApi, type BoardDetail, type Card, type CardWithList } from '@/lib/boards-api';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
 import { CardActivity } from './card-activity';
 import { resolveCard } from './card-badges';
+import { CopyCardContent } from './card-copy';
 import { AddChecklistPopoverContent, ChecklistSection } from './card-checklists';
 import { CardDatesField, DatesPopoverContent } from './card-dates';
 import { LabelsPopoverContent } from './card-labels';
@@ -82,7 +85,8 @@ export function useCardParam() {
 
 /**
  * Modal chi tiết thẻ. Dùng `key={cardId}` ở nơi gọi để mỗi thẻ có state riêng.
- * Thẻ không có trong bảng (link sai, đã bị xoá) → tự đóng.
+ * Thẻ không có trên bảng → hỏi server: đã lưu trữ (hoặc nằm trong danh sách đã lưu trữ) thì hiện bản chỉ xem
+ * kèm "Khôi phục"; không tồn tại (link sai, đã bị xoá) thì tự đóng.
  */
 export function CardDetailModal({
   board,
@@ -99,6 +103,8 @@ export function CardDetailModal({
   const card = list?.cards.find((c) => c.id === cardId);
   const seen = useRef(false);
   const closed = useRef(false);
+  // Thẻ không có trên bảng nhưng vẫn tồn tại (đã lưu trữ)
+  const [archived, setArchived] = useState<CardWithList | null>(null);
 
   // Chỉ đóng 1 lần (vd: xoá thẻ → tự đóng, rồi thẻ biến mất khỏi bảng cũng không đóng lần nữa)
   const close = useCallback(() => {
@@ -110,31 +116,72 @@ export function CardDetailModal({
   useEffect(() => {
     if (card) {
       seen.current = true;
+      setArchived(null);
       return;
     }
     if (closed.current) return;
-    if (!seen.current) toast.error('Không tìm thấy thẻ. Thẻ có thể đã bị xoá.');
-    close();
-  }, [card, close]);
+    let cancelled = false;
+    cardsApi
+      .get(cardId)
+      .then((found) => {
+        if (cancelled) return;
+        if (found.archivedAt || found.listArchived) setArchived(found);
+        else actions.resync(); // có trên server nhưng bảng chưa cập nhật kịp
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        if (!(e instanceof ApiError && e.status === 404)) toast.error(errorMessage(e));
+        else if (!seen.current) toast.error('Không tìm thấy thẻ. Thẻ có thể đã bị xoá.');
+        close();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [card, cardId, actions, close]);
 
-  if (!card || !list) return null;
-  return <CardModal board={board} list={list} card={card} actions={actions} onClose={close} />;
+  if (card && list) {
+    return (
+      <CardModal
+        board={board}
+        listTitle={list.title}
+        card={card}
+        actions={actions}
+        onClose={close}
+        // Hiện ngay bản đã lưu trữ (không chờ server) để modal không chớp tắt
+        onArchive={() => {
+          setArchived({ ...card, archivedAt: new Date().toISOString(), listTitle: list.title, listArchived: false });
+          void actions.archiveCard(card.id);
+        }}
+      />
+    );
+  }
+  if (archived) {
+    return <CardModal board={board} listTitle={archived.listTitle} card={archived} archived={archived} actions={actions} onClose={close} />;
+  }
+  return null;
 }
 
 function CardModal({
   board,
-  list,
+  listTitle,
   card,
+  archived,
   actions,
   onClose,
+  onArchive,
 }: {
   board: BoardDetail;
-  list: List;
+  listTitle: string;
   card: Card;
+  /** Thẻ đã lưu trữ / nằm trong danh sách đã lưu trữ → chỉ xem */
+  archived?: CardWithList;
   actions: BoardActions;
   onClose: () => void;
+  onArchive?: () => void;
 }) {
-  const canEdit = board.role !== 'VIEWER';
+  const canManage = board.role !== 'VIEWER';
+  const canEdit = canManage && !archived;
+  const copy = usePopoverAnchor();
   const meId = useAuth().user?.id;
   const move = usePopoverAnchor();
   const remove = usePopoverAnchor();
@@ -147,6 +194,22 @@ function CardModal({
 
   return (
     <Modal label={`Thẻ ${card.title}`} onClose={onClose} className="max-w-192">
+      {archived && (
+        <ArchivedBanner
+          archived={archived}
+          canManage={canManage}
+          onRestore={async () => {
+            try {
+              await actions.restoreCard(card.id);
+              toast.success('Đã khôi phục thẻ');
+            } catch (e) {
+              toast.error(errorMessage(e));
+            }
+          }}
+          onDelete={remove.toggle}
+          deleteExpanded={!!remove.anchor}
+        />
+      )}
       <ModalCloseButton onClick={onClose} />
 
       <header className="flex items-start gap-3 px-6 pt-6 pb-3">
@@ -164,10 +227,10 @@ function CardModal({
                 title="Di chuyển thẻ"
                 className="font-semibold text-ink underline underline-offset-2 transition-colors hover:text-brand"
               >
-                {list.title}
+                {listTitle}
               </button>
             ) : (
-              <strong className="font-semibold text-ink">{list.title}</strong>
+              <strong className="font-semibold text-ink">{listTitle}</strong>
             )}
           </p>
         </div>
@@ -188,7 +251,7 @@ function CardModal({
           {card.checklists.map((checklist) => (
             <ChecklistSection key={checklist.id} checklist={checklist} canEdit={canEdit} actions={actions} />
           ))}
-          <CardActivity board={board} card={card} actions={actions} />
+          <CardActivity board={board} card={card} actions={actions} readOnly={!!archived} />
         </div>
 
         {canEdit && (
@@ -213,8 +276,11 @@ function CardModal({
 
             <SidebarGroup title="Thao tác">
               <SidebarButton icon={ArrowRight} label="Di chuyển" onClick={move.toggle} expanded={!!move.anchor} />
-              <UpcomingButton label="Sao chép" icon={Copy} />
-              <UpcomingButton label="Lưu trữ" icon={Archive} />
+              <SidebarButton icon={Copy} label="Sao chép" onClick={copy.toggle} expanded={!!copy.anchor} />
+              <button type="button" onClick={onArchive} className={SIDEBAR_BUTTON}>
+                <Archive size={18} className="text-ink-subtle" />
+                Lưu trữ
+              </button>
               <button
                 type="button"
                 onClick={remove.toggle}
@@ -244,6 +310,18 @@ function CardModal({
 
       <Popover anchor={checklistPop.anchor} onClose={checklistPop.close} label="Thêm checklist">
         <AddChecklistPopoverContent onAdd={(title) => actions.addChecklist(card.id, title)} onClose={checklistPop.close} />
+      </Popover>
+
+      <Popover anchor={copy.anchor} onClose={copy.close} label="Sao chép thẻ">
+        <CopyCardContent
+          board={board}
+          card={card}
+          onClose={copy.close}
+          onCopy={async (input) => {
+            await actions.copyCard(card.id, input);
+            toast.success(`Đã sao chép thẻ "${input.title}"`);
+          }}
+        />
       </Popover>
 
       <Popover anchor={move.anchor} onClose={move.close} label="Di chuyển thẻ">
@@ -276,6 +354,68 @@ function CardModal({
         </button>
       </Popover>
     </Modal>
+  );
+}
+
+// ---------- Thẻ đã lưu trữ ----------
+
+/** Dải vàng đầu modal: thẻ đã lưu trữ (Khôi phục / Xoá) hoặc nằm trong danh sách đã lưu trữ. */
+function ArchivedBanner({
+  archived,
+  canManage,
+  onRestore,
+  onDelete,
+  deleteExpanded,
+}: {
+  archived: CardWithList;
+  canManage: boolean;
+  onRestore: () => Promise<void>;
+  onDelete: (e: MouseEvent<HTMLElement>) => void;
+  deleteExpanded: boolean;
+}) {
+  const [pending, setPending] = useState(false);
+  const cardArchived = !!archived.archivedAt;
+
+  return (
+    <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-t-xl bg-[#fff7d6] px-6 py-3 pr-14 text-sm text-[#533f04]">
+      <Archive size={18} className="shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 font-medium">
+        {cardArchived ? (
+          'Thẻ này đã được lưu trữ.'
+        ) : (
+          <>
+            Thẻ này nằm trong danh sách <strong>{archived.listTitle}</strong> đã được lưu trữ.
+          </>
+        )}
+      </span>
+      {canManage && cardArchived && (
+        <span className="flex items-center gap-1.5">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={async () => {
+              setPending(true);
+              await onRestore();
+              setPending(false);
+            }}
+            className="flex h-8 items-center gap-1.5 rounded bg-white/70 px-3 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-white disabled:opacity-60"
+          >
+            <RotateCcw size={15} />
+            {pending ? 'Đang khôi phục...' : 'Khôi phục'}
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-haspopup="dialog"
+            aria-expanded={deleteExpanded}
+            className="flex h-8 items-center gap-1.5 rounded bg-danger px-3 text-sm font-medium text-white shadow-sm transition-opacity hover:opacity-90"
+          >
+            <Trash2 size={15} />
+            Xoá
+          </button>
+        </span>
+      )}
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { ListFilter, Lock, MoreHorizontal, SquareKanban, Trash2, UserPlus, X } from 'lucide-react';
+import { Archive, ChevronRight, ListFilter, Lock, MoreHorizontal, SquareKanban, Trash2, UserPlus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Avatar, givenName } from '@/components/avatar';
@@ -14,6 +14,7 @@ import type { BoardDetail, BoardMember } from '@/lib/boards-api';
 import { EMPTY_FILTER, filterCount, type CardFilter } from '@/lib/card-filter';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
+import { ArchiveModal } from './archive-modal';
 import { CardFilterPopoverContent } from './card-filter-popover';
 import { InlineTitle } from './inline-title';
 import { ShareBoardModal } from './share-board-modal';
@@ -41,6 +42,7 @@ export function BoardHeader({
   const filterMenu = usePopoverAnchor();
   const filtering = filterCount(filter) > 0;
   const [sharing, setSharing] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 bg-black/25 px-4 text-white backdrop-blur-md">
@@ -133,10 +135,19 @@ export function BoardHeader({
       </Popover>
 
       <Popover anchor={menu.anchor} onClose={menu.close} label="Menu bảng" align="end" width={320}>
-        <BoardMenuContent board={board} actions={actions} onClose={menu.close} />
+        <BoardMenuContent
+          board={board}
+          actions={actions}
+          onClose={menu.close}
+          onOpenArchive={() => {
+            menu.close();
+            setArchiveOpen(true);
+          }}
+        />
       </Popover>
 
       {sharing && <ShareBoardModal board={board} actions={actions} onClose={() => setSharing(false)} />}
+      {archiveOpen && <ArchiveModal board={board} actions={actions} onClose={() => setArchiveOpen(false)} />}
     </header>
   );
 }
@@ -164,7 +175,17 @@ function MemberStack({ members, onClick }: { members: BoardMember[]; onClick: ()
   );
 }
 
-function BoardMenuContent({ board, actions, onClose }: { board: BoardDetail; actions: BoardActions; onClose: () => void }) {
+function BoardMenuContent({
+  board,
+  actions,
+  onClose,
+  onOpenArchive,
+}: {
+  board: BoardDetail;
+  actions: BoardActions;
+  onClose: () => void;
+  onOpenArchive: () => void;
+}) {
   const router = useRouter();
   const isAdmin = board.role === 'ADMIN';
   const [confirming, setConfirming] = useState(false);
@@ -205,6 +226,15 @@ function BoardMenuContent({ board, actions, onClose }: { board: BoardDetail; act
   return (
     <>
       <PopoverHeader title="Menu" onClose={onClose} />
+      <button
+        type="button"
+        onClick={onOpenArchive}
+        className="-mt-1 mb-3 flex w-full items-center gap-2 rounded px-2 py-2 text-sm transition-colors hover:bg-surface-low"
+      >
+        <Archive size={16} className="text-ink-subtle" />
+        <span className="flex-1 text-left">Mục đã lưu trữ</span>
+        <ChevronRight size={16} className="text-ink-subtle" />
+      </button>
       <BackgroundPicker
         value={board.background}
         disabled={!isAdmin}

@@ -106,14 +106,16 @@ model BoardJoinRequest {
 
 // position: số thực, sắp xếp tăng dần. Chèn giữa 2 phần tử = trung bình cộng → chỉ cập nhật 1 dòng.
 model List {
-  id        String   @id @default(cuid())
-  boardId   String
-  title     String
-  position  Float
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  cards     Card[]
+  id         String    @id @default(cuid())
+  boardId    String
+  title      String
+  position   Float
+  // Đã lưu trữ: ẩn khỏi bảng cùng mọi thẻ bên trong; khôi phục thì về đúng vị trí cũ
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  board      Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards      Card[]
 
   @@index([boardId, position])
   @@map("lists")
@@ -130,6 +132,8 @@ model Card {
   dueDate       DateTime?
   // Đánh dấu đã hoàn thành hạn chót — xoá hạn chót thì tự về false
   dueComplete   Boolean        @default(false)
+  // Đã lưu trữ: ẩn khỏi bảng (vẫn mở được qua link); khôi phục thì về đúng vị trí cũ
+  archivedAt    DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   list          List           @relation(fields: [listId], references: [id], onDelete: Cascade)
@@ -225,6 +229,9 @@ enum ActivityType {
   CHECKLIST_REMOVED
   CHECKLIST_ITEM_COMPLETED
   CHECKLIST_ITEM_UNCOMPLETED
+  CARD_ARCHIVED
+  CARD_RESTORED
+  CARD_COPIED
 }
 
 // Lịch sử hoạt động của thẻ; bình luận cũng là 1 hoạt động (type COMMENT, nội dung ở `text`).

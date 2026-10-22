@@ -69,6 +69,42 @@ export class UpdateCardDto {
   dueComplete?: boolean;
 }
 
+export class CopyCardDto {
+  @ApiProperty({ minLength: 1, maxLength: MAX_CARD_TITLE, example: 'Thiết kế trang chủ (bản sao)', description: 'Tên thẻ mới' })
+  @CardTitleRules()
+  title: string;
+
+  @ApiProperty({ example: 'cmglist00000vq8h3b1c2d4e', description: 'Danh sách đích (cùng bảng, chưa lưu trữ)' })
+  @IsString()
+  @IsNotEmpty({ message: 'Vui lòng chọn danh sách đích' })
+  listId: string;
+
+  @ApiProperty({ minimum: 0, example: 0, description: 'Vị trí trong danh sách đích, tính từ 0. Lớn hơn số thẻ → đặt cuối.' })
+  @IsInt({ message: 'index phải là số nguyên' })
+  @Min(0, { message: 'index không được âm' })
+  index: number;
+
+  @ApiPropertyOptional({ default: true, description: 'Giữ nhãn' })
+  @IsOptional()
+  @IsBoolean({ message: 'keepLabels phải là true hoặc false' })
+  keepLabels: boolean = true;
+
+  @ApiPropertyOptional({ default: true, description: 'Giữ thành viên được giao' })
+  @IsOptional()
+  @IsBoolean({ message: 'keepMembers phải là true hoặc false' })
+  keepMembers: boolean = true;
+
+  @ApiPropertyOptional({ default: true, description: 'Giữ checklist (kèm trạng thái các mục)' })
+  @IsOptional()
+  @IsBoolean({ message: 'keepChecklists phải là true hoặc false' })
+  keepChecklists: boolean = true;
+
+  @ApiPropertyOptional({ default: true, description: 'Giữ ngày bắt đầu / hạn chót' })
+  @IsOptional()
+  @IsBoolean({ message: 'keepDates phải là true hoặc false' })
+  keepDates: boolean = true;
+}
+
 export class MoveCardDto {
   @ApiProperty({ example: 'cmglist00000vq8h3b1c2d4e', description: 'Danh sách đích (phải cùng bảng; có thể là danh sách hiện tại)' })
   @IsString()
@@ -110,6 +146,9 @@ export class CardDto {
   @ApiProperty({ example: false })
   dueComplete: boolean;
 
+  @ApiProperty({ type: String, format: 'date-time', nullable: true, example: null, description: 'Thời điểm lưu trữ; null = đang hiện trên bảng' })
+  archivedAt: Date | null;
+
   @ApiProperty({ type: [String], example: ['cmglabel0000vq8h3b1c2d4e'], description: 'ID nhãn — chi tiết nằm ở `board.labels`' })
   labelIds: string[];
 
@@ -132,4 +171,18 @@ export class CardDto {
 export class CardResponseDto {
   @ApiProperty({ type: CardDto })
   card: CardDto;
+}
+
+/** Thẻ kèm tên danh sách — dùng khi thẻ không có trong dữ liệu bảng (đã lưu trữ, mở qua link). */
+export class CardWithListDto extends CardDto {
+  @ApiProperty({ example: 'Cần làm' })
+  listTitle: string;
+
+  @ApiProperty({ example: false, description: 'Danh sách chứa thẻ đã bị lưu trữ' })
+  listArchived: boolean;
+}
+
+export class CardWithListResponseDto {
+  @ApiProperty({ type: CardWithListDto })
+  card: CardWithListDto;
 }

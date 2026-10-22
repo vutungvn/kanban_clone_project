@@ -62,9 +62,11 @@ export class NotificationsService {
       where: { id: cardId },
       select: {
         title: true,
+        archivedAt: true,
         members: { select: { userId: true } },
         list: {
           select: {
+            archivedAt: true,
             board: {
               select: {
                 id: true,
@@ -81,6 +83,8 @@ export class NotificationsService {
     return {
       boardId: board.id,
       cardId,
+      /** Thẻ (hoặc danh sách chứa thẻ) đã lưu trữ → không gửi thông báo về thay đổi của thẻ */
+      archived: !!card.archivedAt || !!card.list.archivedAt,
       assigneeIds: card.members.map((m) => m.userId),
       boardMembers: board.members.map((m) => ({ id: m.userId, name: m.user.name })),
       /** Phần chung của `data` */
