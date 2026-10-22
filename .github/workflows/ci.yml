@@ -1,16 +1,16 @@
 name: CI
 
-# Khi nào chạy: push lên main, hoặc mở / cập nhật PR vào main
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
-# Push liên tiếp lên cùng 1 nhánh → huỷ lượt chạy cũ, chỉ giữ lượt mới nhất
+# PR: push liên tiếp thì huỷ lượt chạy cũ.
+# main: KHÔNG huỷ giữa chừng (tránh cắt ngang một lần deploy đang chạy) — lượt mới xếp hàng chờ.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   server:
@@ -18,9 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: server # mọi lệnh "run" chạy trong thư mục server/
-
-    # Postgres tạm để chạy thử migration
+        working-directory: server
     services:
       postgres:
         image: postgres:16-alpine
@@ -35,39 +33,29 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-
     env:
       DATABASE_URL: postgresql://kanban:kanban@localhost:5432/kanban?schema=public
-
     steps:
       - name: Lấy code
         uses: actions/checkout@v4
-
       - name: Cài Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: server/package-lock.json
-
       - name: Cài package
         run: npm ci
-
       - name: Kiểm tra schema Prisma
         run: npx prisma validate
-
       - name: Sinh Prisma Client
         run: npx prisma generate
-
       - name: Chạy toàn bộ migration lên DB trống
         run: npx prisma migrate deploy
-
       - name: Kiểm tra schema.prisma khớp với migration
         run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
-
       - name: Typecheck
         run: npx tsc --noEmit -p tsconfig.json
-
       - name: Build
         run: npm run build
 
@@ -77,26 +65,94 @@ jobs:
     defaults:
       run:
         working-directory: client
-
     env:
       NEXT_TELEMETRY_DISABLED: 1
-
     steps:
       - name: Lấy code
         uses: actions/checkout@v4
-
       - name: Cài Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: client/package-lock.json
-
       - name: Cài package
         run: npm ci
-
       - name: Typecheck
         run: npx tsc --noEmit -p tsconfig.json
-
       - name: Build
         run: npm run build
+
+  # ===================== CD: chỉ khi push lên main và CI xanh =====================
+
+  deploy-server:
+    name: Deploy server (Render)
+    needs: [server, client]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+    steps:
+      - name: Yêu cầu Render deploy đúng commit này
+        id: trigger
+        run: |
+          response=$(curl -fsS -X POST "https://api.render.com/v1/services/$SERVICE_ID/deploys" \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"commitId\": \"$GITHUB_SHA\"}")
+          echo "$response"
+          deploy_id=$(echo "$response" | jq -r '.id')
+          if [ -z "$deploy_id" ] || [ "$deploy_id" = "null" ]; then
+            echo "Không đọc được id của lần deploy"; exit 1
+          fi
+          echo "deploy_id=$deploy_id" >> "$GITHUB_OUTPUT"
+
+      - name: Chờ Render deploy xong (tối đa ~15 phút)
+        env:
+          DEPLOY_ID: ${{ steps.trigger.outputs.deploy_id }}
+        run: |
+          for i in $(seq 1 60); do
+            status=$(curl -fsS -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$DEPLOY_ID" | jq -r '.status')
+            echo "Lần $i: $status"
+            case "$status" in
+              live) exit 0 ;;
+              build_failed|update_failed|pre_deploy_failed|canceled|deactivated) exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "Quá thời gian chờ"; exit 1
+
+      - name: Kiểm tra server sau deploy
+        run: curl -fsS --retry 5 --retry-delay 10 --retry-all-errors https://kanban-api-vptx.onrender.com/api/health
+
+  deploy-client:
+    name: Deploy client (Vercel)
+    needs: deploy-server
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://kanban-clone-project.vercel.app
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Lấy code
+        uses: actions/checkout@v4
+      - name: Cài Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Cài Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Lấy cấu hình + biến môi trường production từ Vercel
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - name: Build
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+      - name: Deploy lên production
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+      - name: Kiểm tra toàn hệ thống sau deploy (client → proxy → server)
+        run: curl -fsS --retry 5 --retry-delay 10 --retry-all-errors https://kanban-clone-project.vercel.app/api/health
