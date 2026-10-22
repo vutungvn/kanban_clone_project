@@ -118,7 +118,7 @@ export default function BoardsPage() {
 
           <BoardSection
             icon={<LayoutDashboard size={20} className="text-ink-subtle" />}
-            title="Bảng của bạn 123"
+            title="Bảng của bạn"
             aside={
               status !== "ready"
                 ? undefined
