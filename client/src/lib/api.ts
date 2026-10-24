@@ -36,6 +36,14 @@ export function refreshSession() {
   return refreshing;
 }
 
+/** Lỗi từ response không thành công → ApiError với câu thông báo của server. */
+function toApiError(status: number, body: { message?: string | string[] } | null) {
+  // Rate limit: server trả "ThrottlerException: Too Many Requests" — đổi sang câu dễ hiểu
+  if (status === 429) return new ApiError(429, 'Bạn thao tác quá nhanh, vui lòng thử lại sau 1 phút');
+  const message = Array.isArray(body?.message) ? body.message[0] : body?.message;
+  return new ApiError(status, message ?? 'Đã có lỗi xảy ra, vui lòng thử lại');
+}
+
 export async function api<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
   const socketId = getSocketId();
   const res = await fetch(`${API_URL}${path}`, {
@@ -48,14 +56,42 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
     return api<T>(path, init, false);
   }
 
-  if (!res.ok) {
-    // Rate limit: server trả "ThrottlerException: Too Many Requests" — đổi sang câu dễ hiểu
-    if (res.status === 429) throw new ApiError(429, 'Bạn thao tác quá nhanh, vui lòng thử lại sau 1 phút');
-    const body = await res.json().catch(() => null);
-    const message = Array.isArray(body?.message) ? body.message[0] : body?.message;
-    throw new ApiError(res.status, message ?? 'Đã có lỗi xảy ra, vui lòng thử lại');
-  }
+  if (!res.ok) throw toApiError(res.status, await res.json().catch(() => null));
 
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+/**
+ * Gửi tệp (multipart, POST) kèm tiến độ 0 → 1 — fetch chưa báo được tiến độ gửi lên nên dùng XHR.
+ * Hết phiên (401) → làm mới rồi gửi lại 1 lần, giống `api`.
+ */
+export async function upload<T>(path: string, form: FormData, onProgress?: (fraction: number) => void): Promise<T> {
+  const send = () =>
+    new Promise<{ status: number; body: unknown }>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_URL}${path}`);
+      xhr.withCredentials = true;
+      const socketId = getSocketId();
+      if (socketId) xhr.setRequestHeader('X-Socket-Id', socketId);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress?.(e.loaded / e.total);
+      };
+      xhr.onerror = () => reject(new TypeError('Network error'));
+      xhr.onload = () => {
+        let body: unknown = null;
+        try {
+          body = JSON.parse(xhr.responseText);
+        } catch {
+          // Không phải JSON (vd proxy trả trang lỗi)
+        }
+        resolve({ status: xhr.status, body });
+      };
+      xhr.send(form);
+    });
+
+  let res = await send();
+  if (res.status === 401 && (await refreshSession())) res = await send();
+  if (res.status < 200 || res.status >= 300) throw toApiError(res.status, res.body as { message?: string } | null);
+  return res.body as T;
 }

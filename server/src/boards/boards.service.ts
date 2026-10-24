@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { BoardMember, BoardRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { StorageService } from '../storage/storage.service';
 import { BOARD_NOT_FOUND, BoardAccessService } from './board-access.service';
 import { DEFAULT_LABEL_COLORS } from './boards.constants';
 import { byPosition, cardInclude, listInclude, notArchived, toCard, toList } from './card-shape';
@@ -49,6 +50,7 @@ export class BoardsService {
     private readonly prisma: PrismaService,
     private readonly access: BoardAccessService,
     private readonly realtime: RealtimeService,
+    private readonly storage: StorageService,
   ) {}
 
   async listForUser(userId: string) {
@@ -104,8 +106,10 @@ export class BoardsService {
   /** Xoá bảng — list, card, nhãn, thành viên bị xoá theo (onDelete: Cascade). */
   async remove(boardId: string, userId: string) {
     await this.access.require(boardId, userId, BoardRole.ADMIN);
+    const files = await this.storage.keysOf({ card: { list: { boardId } } });
     await this.prisma.board.delete({ where: { id: boardId } });
     this.realtime.boardDeleted(boardId);
+    void this.storage.discard(files);
   }
 
   /** Danh sách (chưa lưu trữ) của bảng + số thẻ — gọn nhẹ, dùng cho ô chọn đích khi di chuyển / sao chép. */

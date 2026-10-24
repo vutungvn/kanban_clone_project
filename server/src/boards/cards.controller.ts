@@ -11,13 +11,24 @@ import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiAuth, ApiForbidden, ApiNotFound, ApiValidationError } from '../common/swagger/api-responses';
-import { CARD_NOT_FOUND, CardsService, LABEL_NOT_FOUND, NO_DUE_DATE, NOT_BOARD_MEMBER, START_AFTER_DUE } from './cards.service';
+import {
+  ATTACHMENT_NOT_FOUND,
+  CARD_NOT_FOUND,
+  CardsService,
+  COVER_NOT_IMAGE,
+  COVER_REQUIRED,
+  LABEL_NOT_FOUND,
+  NO_DUE_DATE,
+  NOT_BOARD_MEMBER,
+  START_AFTER_DUE,
+} from './cards.service';
 import {
   CardResponseDto,
   CardWithListResponseDto,
   CopyCardDto,
   CreateCardDto,
   MoveCardDto,
+  SetCoverDto,
   UpdateCardDto,
 } from './dto/card.dto';
 import { LIST_NOT_FOUND } from './lists.service';
@@ -111,8 +122,8 @@ export class CardsController {
   @ApiOperation({
     summary: 'Sao chép thẻ',
     description:
-      'Tạo thẻ mới ở vị trí `index` của danh sách `listId` (cùng bảng). Mô tả luôn được giữ; ' +
-      'nhãn / thành viên / checklist / ngày tuỳ chọn (mặc định giữ hết); không sao chép bình luận.',
+      'Tạo thẻ mới ở vị trí `index` của danh sách `listId` (cùng bảng). Mô tả và màu ảnh bìa luôn được giữ; ' +
+      'nhãn / thành viên / checklist / ngày / tệp đính kèm tuỳ chọn (mặc định giữ hết); không sao chép bình luận.',
   })
   @ApiParam({ name: 'id', description: 'ID thẻ gốc' })
   @ApiCreatedResponse({ type: CardResponseDto })
@@ -133,6 +144,32 @@ export class CardsController {
   @Delete('cards/:id')
   async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     await this.cards.remove(id, user.id);
+  }
+
+  @ApiOperation({
+    summary: 'Đặt ảnh bìa',
+    description: 'Gửi đúng 1 trong 2: `color` (màu) hoặc `attachmentId` (ảnh đính kèm của chính thẻ). Thay cho ảnh bìa cũ.',
+  })
+  @ApiParam({ name: 'id', description: 'ID thẻ' })
+  @ApiNoContentResponse({ description: 'Đã đặt' })
+  @ApiValidationError([COVER_REQUIRED, COVER_NOT_IMAGE, 'Màu ảnh bìa không hợp lệ'])
+  @ApiForbidden(VIEWER_FORBIDDEN)
+  @ApiNotFound(ATTACHMENT_NOT_FOUND, 'Thẻ / ảnh không tồn tại, ảnh thuộc thẻ khác, hoặc bạn không phải thành viên')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Put('cards/:id/cover')
+  async setCover(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SetCoverDto) {
+    await this.cards.setCover(id, user.id, dto);
+  }
+
+  @ApiOperation({ summary: 'Gỡ ảnh bìa', description: 'Ảnh đính kèm vẫn được giữ.' })
+  @ApiParam({ name: 'id', description: 'ID thẻ' })
+  @ApiNoContentResponse({ description: 'Đã gỡ' })
+  @ApiForbidden(VIEWER_FORBIDDEN)
+  @ApiNotFound(CARD_NOT_FOUND)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Delete('cards/:id/cover')
+  async removeCover(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await this.cards.removeCover(id, user.id);
   }
 
   @ApiOperation({ summary: 'Gắn nhãn vào thẻ', description: 'Nhãn phải thuộc cùng bảng. Đã gắn rồi thì không làm gì.' })

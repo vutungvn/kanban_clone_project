@@ -27,7 +27,13 @@ export function CopyCardContent({
 }) {
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [title, setTitle] = useState(card.title);
-  const [keep, setKeep] = useState({ keepLabels: true, keepMembers: true, keepChecklists: true, keepDates: true });
+  const [keep, setKeep] = useState({
+    keepLabels: true,
+    keepMembers: true,
+    keepChecklists: true,
+    keepDates: true,
+    keepAttachments: true,
+  });
   const boards = useTargetBoards(board);
   const [boardId, setBoardId] = useState(board.id);
   const target = useTargetLists(boardId, board);
@@ -50,6 +56,7 @@ export function CopyCardContent({
     { key: 'keepMembers', label: 'Thành viên', count: card.memberIds.length },
     { key: 'keepChecklists', label: 'Việc cần làm', count: checklistItems || card.checklists.length },
     { key: 'keepDates', label: 'Ngày', count: card.startDate || card.dueDate ? 1 : 0 },
+    { key: 'keepAttachments', label: 'Tệp đính kèm', count: card.attachments.length },
   ] as const;
   const shown = options.filter((o) => o.count > 0);
 

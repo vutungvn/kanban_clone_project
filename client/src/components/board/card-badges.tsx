@@ -1,8 +1,9 @@
 'use client';
 
-import { AlignLeft, Clock, MessageSquare, SquareCheck } from 'lucide-react';
+import { AlignLeft, Clock, MessageSquare, Paperclip, SquareCheck } from 'lucide-react';
 import { createContext, useContext } from 'react';
 import { Avatar } from '@/components/avatar';
+import { cardCover } from '@/lib/attachments';
 import type { BoardMember, Card, Label } from '@/lib/boards-api';
 import { DUE_STATUS_CLASS, DUE_STATUS_LABEL, dueStatus, formatCardDates } from '@/lib/card-dates';
 import { cn } from '@/lib/cn';
@@ -37,20 +38,45 @@ export function describeCard(card: Card, labels: Label[], members: BoardMember[]
   const { done, total } = checklistProgress(card.checklists);
   if (total) parts.push(`Checklist ${done}/${total}`);
   if (card.commentCount) parts.push(`${card.commentCount} bình luận`);
+  if (card.attachments.length) parts.push(`${card.attachments.length} tệp đính kèm`);
   if (members.length) parts.push(`Thành viên: ${members.map((m) => m.name).join(', ')}`);
   return parts.join('. ');
 }
 
-/** Nội dung thẻ ngoài bảng: nhãn, tiêu đề, các badge, avatar thành viên. */
+/** Ảnh bìa trên thẻ ngoài bảng — tràn sát mép thẻ (bù lại padding p-3 của thẻ). */
+function CardFaceCover({ card }: { card: Card }) {
+  const cover = cardCover(card);
+  if (!cover) return null;
+  if ('color' in cover) return <div aria-hidden className="-mx-3 -mt-3 mb-2 h-8 rounded-t-lg" style={{ backgroundColor: cover.color }} />;
+  const { previewUrl, width, height } = cover.image;
+  return (
+    <div className="-mx-3 -mt-3 mb-2 overflow-hidden rounded-t-lg bg-surface-mid">
+      <img
+        src={previewUrl!}
+        alt=""
+        loading="lazy"
+        // Không cho kéo ảnh kiểu HTML — để kéo thả thẻ hoạt động bình thường
+        draggable={false}
+        // Giữ chỗ đúng tỉ lệ trước khi ảnh tải xong → danh sách không bị nhảy
+        style={width && height ? { aspectRatio: `${width} / ${height}` } : undefined}
+        className="block max-h-64 w-full object-cover"
+      />
+    </div>
+  );
+}
+
+/** Nội dung thẻ ngoài bảng: ảnh bìa, nhãn, tiêu đề, các badge, avatar thành viên. */
 export function CardFace({ card }: { card: Card }) {
   const { labels, members } = useResolvedCard(card);
   const dates = formatCardDates(card);
   const status = dueStatus(card);
   const { done, total } = checklistProgress(card.checklists);
-  const hasBadges = !!dates || !!card.description || card.commentCount > 0 || total > 0 || members.length > 0;
+  const files = card.attachments.length;
+  const hasBadges = !!dates || !!card.description || card.commentCount > 0 || files > 0 || total > 0 || members.length > 0;
 
   return (
     <>
+      <CardFaceCover card={card} />
       {labels.length > 0 && (
         <div className="mb-1.5 flex flex-wrap gap-1 pr-6">
           {labels.map((l) => (
@@ -79,6 +105,12 @@ export function CardFace({ card }: { card: Card }) {
             <span className="flex h-6 items-center gap-1 px-1" title="Bình luận">
               <MessageSquare size={14} aria-hidden />
               {card.commentCount}
+            </span>
+          )}
+          {files > 0 && (
+            <span className="flex h-6 items-center gap-1 px-1" title="Tệp đính kèm">
+              <Paperclip size={14} aria-hidden />
+              {files}
             </span>
           )}
           {total > 0 && (

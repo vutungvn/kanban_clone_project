@@ -6,6 +6,7 @@ import { toast } from '@/components/toast';
 import { ApiError, errorMessage } from './api';
 import type { BoardBackground } from './board-backgrounds';
 import {
+  attachmentsApi,
   boardsApi,
   cardsApi,
   checklistsApi,
@@ -20,6 +21,7 @@ import {
   type Card,
   type CardInput,
   type CopyCardInput,
+  type CoverInput,
   type ListSort,
   type Checklist,
   type ChecklistItem,
@@ -502,6 +504,65 @@ export function useBoard(boardId: string) {
               checklists: c.checklists.map((cl) => ({ ...cl, items: cl.items.filter((i) => i.id !== itemId) })),
             })),
           () => checklistsApi.removeItem(itemId),
+        ),
+
+      /**
+       * Đính kèm tệp — chờ API (cần id thật), `onProgress` báo tiến độ gửi lên. Lấy danh sách tệp + ảnh bìa
+       * từ thẻ server trả về (ảnh đầu tiên có thể vừa thành ảnh bìa). Lỗi ném ra cho nơi gọi.
+       */
+      uploadAttachment: async (cardId: string, file: File, onProgress?: (fraction: number) => void) => {
+        const { attachment, card } = await create(() => attachmentsApi.upload(cardId, file, onProgress));
+        const current = boardRef.current;
+        if (current) {
+          commit(
+            mapCard(current, cardId, (c) => ({
+              ...c,
+              attachments: card.attachments,
+              coverColor: card.coverColor,
+              coverAttachmentId: card.coverAttachmentId,
+            })),
+          );
+        }
+        return attachment;
+      },
+
+      renameAttachment: (attachmentId: string, name: string) =>
+        optimistic(
+          (b) =>
+            mapAllCards(b, (c) =>
+              c.attachments.some((a) => a.id === attachmentId)
+                ? { ...c, attachments: c.attachments.map((a) => (a.id === attachmentId ? { ...a, name } : a)) }
+                : c,
+            ),
+          () => attachmentsApi.rename(attachmentId, name),
+        ),
+
+      /** Xoá tệp; đang là ảnh bìa thì thẻ hết ảnh bìa (giống server). */
+      deleteAttachment: (attachmentId: string) =>
+        optimistic(
+          (b) =>
+            mapAllCards(b, (c) =>
+              c.attachments.some((a) => a.id === attachmentId)
+                ? {
+                    ...c,
+                    attachments: c.attachments.filter((a) => a.id !== attachmentId),
+                    coverAttachmentId: c.coverAttachmentId === attachmentId ? null : c.coverAttachmentId,
+                  }
+                : c,
+            ),
+          () => attachmentsApi.remove(attachmentId),
+        ),
+
+      /** Đặt / gỡ ảnh bìa (màu hoặc ảnh đính kèm — không có cả hai). */
+      setCardCover: (cardId: string, cover: CoverInput) =>
+        optimistic(
+          (b) =>
+            mapCard(b, cardId, (c) => ({
+              ...c,
+              coverColor: cover && 'color' in cover ? cover.color : null,
+              coverAttachmentId: cover && 'attachmentId' in cover ? cover.attachmentId : null,
+            })),
+          () => cardsApi.setCover(cardId, cover),
         ),
 
       /** Lưu trữ thẻ: biến khỏi bảng ngay (vẫn mở được qua link / mục "Đã lưu trữ"). */

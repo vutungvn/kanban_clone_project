@@ -26,6 +26,9 @@ export const MAX_CARD_DESCRIPTION = 10_000;
 const LABEL_HUES = ['green', 'yellow', 'orange', 'red', 'purple', 'blue', 'sky', 'lime', 'pink', 'black'] as const;
 export const LABEL_COLORS = LABEL_HUES.flatMap((hue) => [`${hue}_subtle`, hue, `${hue}_bold`]);
 
+/** Màu ảnh bìa của thẻ — 10 màu chuẩn của nhãn (client/src/lib/labels.ts). */
+export const COVER_COLORS: readonly string[] = LABEL_HUES;
+
 /** Nhãn tạo sẵn (không tên) cho mỗi bảng mới — giống Trello */
 export const DEFAULT_LABEL_COLORS = ['green', 'yellow', 'orange', 'red', 'purple', 'blue'];
 

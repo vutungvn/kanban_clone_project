@@ -61,6 +61,7 @@ const activitySignature = (card: Card) =>
     card.dueComplete,
     card.archivedAt,
     card.checklists.map((c) => [c.id, c.items.map((i) => i.completed)]),
+    card.attachments.map((a) => a.id),
   ]);
 
 /**
@@ -681,6 +682,10 @@ function describe(activity: Activity, board: BoardDetail): ReactNode {
           đã sao chép thẻ này từ {quote(d.sourceTitle)} vào danh sách {quote(d.listTitle)}
         </>
       );
+    case 'ATTACHMENT_ADDED':
+      return <>đã đính kèm tệp {quote(d.name)} vào thẻ này</>;
+    case 'ATTACHMENT_REMOVED':
+      return <>đã xoá tệp đính kèm {quote(d.name)} khỏi thẻ này</>;
     case 'CARD_TRANSFERRED':
       return (
         <>

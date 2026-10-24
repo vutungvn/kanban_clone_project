@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { ActivityType, BoardRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { StorageService } from '../storage/storage.service';
 import { ActivitiesService } from './activities.service';
 import { BOARD_NOT_FOUND, BoardAccessService } from './board-access.service';
 import { rehomeCards } from './board-transfer';
@@ -20,6 +21,7 @@ export class ListsService {
     private readonly access: BoardAccessService,
     private readonly realtime: RealtimeService,
     private readonly activities: ActivitiesService,
+    private readonly storage: StorageService,
   ) {}
 
   /** Thêm danh sách vào cuối bảng. */
@@ -177,8 +179,10 @@ export class ListsService {
   /** Xoá danh sách và toàn bộ thẻ bên trong. */
   async remove(listId: string, userId: string) {
     const boardId = await this.requireEditable(listId, userId);
+    const files = await this.storage.keysOf({ card: { listId } });
     await this.prisma.list.delete({ where: { id: listId } });
     this.realtime.boardChanged(boardId);
+    void this.storage.discard(files);
   }
 
   /** Kiểm tra quyền sửa danh sách, trả về boardId. */
