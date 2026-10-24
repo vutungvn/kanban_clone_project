@@ -76,6 +76,9 @@ export function describeNotification(n: Notification): Segment[] {
         ? [{ text: 'đã đặt hạn chót của thẻ ' }, card, { text: ' là ' }, { text: formatDayTime(d.dueDate), strong: true }]
         : [{ text: 'đã gỡ hạn chót của thẻ ' }, card];
     case 'CARD_MOVED':
+      if (typeof d.fromBoard === 'string') {
+        return [{ text: 'đã chuyển thẻ ' }, card, { text: ' từ bảng ' }, { text: d.fromBoard, strong: true }, { text: ' sang bảng ' }, board];
+      }
       return [
         { text: 'đã chuyển thẻ ' },
         card,

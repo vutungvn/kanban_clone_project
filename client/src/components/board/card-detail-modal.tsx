@@ -33,6 +33,7 @@ import type { BoardActions } from '@/lib/use-board';
 import { CardActivity } from './card-activity';
 import { resolveCard } from './card-badges';
 import { CopyCardContent } from './card-copy';
+import { BoardSelect, SELECT_CLASS, useTargetBoards, useTargetLists, type TargetBoard } from './move-target';
 import { AddChecklistPopoverContent, ChecklistSection } from './card-checklists';
 import { CardDatesField, DatesPopoverContent } from './card-dates';
 import { LabelsPopoverContent } from './card-labels';
@@ -44,8 +45,6 @@ const MAX_DESCRIPTION = 10_000;
 
 const SIDEBAR_BUTTON =
   'flex w-full items-center gap-2.5 rounded bg-surface-low px-3 py-2 text-left text-sm font-medium text-ink transition-colors hover:bg-surface-mid aria-expanded:bg-surface-high disabled:cursor-not-allowed disabled:text-ink/50 disabled:hover:bg-surface-low';
-const SELECT_CLASS =
-  'h-9 w-full rounded bg-white px-2 text-sm text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]';
 
 // ---------- URL: /b/:boardId?card=:cardId ----------
 
@@ -101,6 +100,7 @@ export function CardDetailModal({
 }) {
   const list = board.lists.find((l) => l.cards.some((c) => c.id === cardId));
   const card = list?.cards.find((c) => c.id === cardId);
+  const router = useRouter();
   const seen = useRef(false);
   const closed = useRef(false);
   // Thẻ không có trên bảng nhưng vẫn tồn tại (đã lưu trữ)
@@ -125,6 +125,14 @@ export function CardDetailModal({
       .get(cardId)
       .then((found) => {
         if (cancelled) return;
+        // Thẻ vừa được chuyển sang bảng khác (mình vẫn xem được) → mở thẻ ở bảng đó
+        if (found.boardId !== board.id) {
+          closed.current = true;
+          openedInApp = false; // đóng modal ở bảng mới thì về bảng mới, không Back về bảng cũ
+          toast.info(`Thẻ "${found.title}" đã được chuyển sang bảng khác`);
+          router.replace(`/b/${found.boardId}?card=${encodeURIComponent(cardId)}`);
+          return;
+        }
         if (found.archivedAt || found.listArchived) setArchived(found);
         else actions.resync(); // có trên server nhưng bảng chưa cập nhật kịp
       })
@@ -137,7 +145,7 @@ export function CardDetailModal({
     return () => {
       cancelled = true;
     };
-  }, [card, cardId, actions, close]);
+  }, [card, cardId, board.id, actions, close, router]);
 
   if (card && list) {
     return (
@@ -149,7 +157,7 @@ export function CardDetailModal({
         onClose={close}
         // Hiện ngay bản đã lưu trữ (không chờ server) để modal không chớp tắt
         onArchive={() => {
-          setArchived({ ...card, archivedAt: new Date().toISOString(), listTitle: list.title, listArchived: false });
+          setArchived({ ...card, archivedAt: new Date().toISOString(), boardId: board.id, listTitle: list.title, listArchived: false });
           void actions.archiveCard(card.id);
         }}
       />
@@ -317,9 +325,13 @@ function CardModal({
           board={board}
           card={card}
           onClose={copy.close}
-          onCopy={async (input) => {
+          onCopy={async (input, target) => {
             await actions.copyCard(card.id, input);
-            toast.success(`Đã sao chép thẻ "${input.title}"`);
+            toast.success(
+              target.id === board.id
+                ? `Đã sao chép thẻ "${input.title}"`
+                : `Đã sao chép thẻ "${input.title}" sang bảng "${target.title}"`,
+            );
           }}
         />
       </Popover>
@@ -329,9 +341,17 @@ function CardModal({
           board={board}
           card={card}
           onClose={move.close}
-          onMove={(listId, index) => {
+          onMove={async ({ board: target, listId, index }) => {
             move.close();
-            void actions.moveCard(card.id, listId, index);
+            if (target.id === board.id) {
+              void actions.moveCard(card.id, listId, index);
+              return;
+            }
+            // Sang bảng khác: đóng modal trước (thẻ sẽ biến khỏi bảng này)
+            onClose();
+            if (await actions.moveCard(card.id, listId, index)) {
+              toast.success(`Đã chuyển thẻ "${card.title}" sang bảng "${target.title}"`);
+            }
           }}
         />
       </Popover>
@@ -721,7 +741,10 @@ function UpcomingButton({ icon: Icon, label }: { icon: LucideIcon; label: string
   );
 }
 
-/** Chọn danh sách + vị trí đích. Vị trí đánh số từ 1, không tính chính thẻ này. */
+/**
+ * Chọn bảng + danh sách + vị trí đích. Vị trí đánh số từ 1, không tính chính thẻ này.
+ * Đổi bảng → mặc định danh sách đầu tiên, cuối danh sách.
+ */
 function MoveCardContent({
   board,
   card,
@@ -731,14 +754,27 @@ function MoveCardContent({
   board: BoardDetail;
   card: Card;
   onClose: () => void;
-  onMove: (listId: string, index: number) => void;
+  onMove: (target: { board: TargetBoard; listId: string; index: number }) => void;
 }) {
+  const boards = useTargetBoards(board);
+  const [boardId, setBoardId] = useState(board.id);
+  const { lists, loading, error } = useTargetLists(boardId, board);
   const currentIndex = board.lists.find((l) => l.id === card.listId)?.cards.findIndex((c) => c.id === card.id) ?? 0;
   const [listId, setListId] = useState(card.listId);
+  // -1 = cuối danh sách
   const [index, setIndex] = useState(currentIndex);
-  const otherCards = (id: string) => board.lists.find((l) => l.id === id)?.cards.filter((c) => c.id !== card.id).length ?? 0;
-  const slots = otherCards(listId) + 1;
-  const unchanged = listId === card.listId && index === currentIndex;
+
+  const options = lists ?? [];
+  const effectiveListId = options.some((l) => l.id === listId) ? listId : (options[0]?.id ?? '');
+  const otherCards = (id: string) => {
+    const count = options.find((l) => l.id === id)?.cardCount ?? 0;
+    return id === card.listId ? count - 1 : count;
+  };
+  const slots = otherCards(effectiveListId) + 1;
+  const effectiveIndex = index < 0 ? slots - 1 : Math.min(index, slots - 1);
+  const sameBoard = boardId === board.id;
+  const unchanged = sameBoard && effectiveListId === card.listId && effectiveIndex === currentIndex;
+  const target = boards.find((b) => b.id === boardId) ?? { id: board.id, title: board.title };
 
   return (
     <>
@@ -747,43 +783,73 @@ function MoveCardContent({
         className="flex flex-col gap-3"
         onSubmit={(e) => {
           e.preventDefault();
+          if (!effectiveListId) return;
           if (unchanged) onClose();
-          else onMove(listId, index);
+          else onMove({ board: target, listId: effectiveListId, index: effectiveIndex });
         }}
       >
-        <label className="flex flex-col gap-1 text-xs font-semibold text-ink-subtle">
-          Danh sách
-          <select
-            autoFocus
-            value={listId}
-            onChange={(e) => {
-              const next = e.target.value;
-              setListId(next);
-              // Về lại danh sách cũ → vị trí cũ; sang danh sách khác → cuối danh sách
-              setIndex(next === card.listId ? currentIndex : otherCards(next));
-            }}
-            className={SELECT_CLASS}
-          >
-            {board.lists.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.title}
-                {l.id === card.listId ? ' (hiện tại)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs font-semibold text-ink-subtle">
-          Vị trí
-          <select value={index} onChange={(e) => setIndex(Number(e.target.value))} className={SELECT_CLASS}>
-            {Array.from({ length: slots }, (_, i) => (
-              <option key={i} value={i}>
-                {i + 1}
-                {listId === card.listId && i === currentIndex ? ' (hiện tại)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="submit" className={cn(PRIMARY_BUTTON, 'h-9 w-full')}>
+        <BoardSelect
+          boards={boards}
+          value={boardId}
+          currentId={board.id}
+          onChange={(next) => {
+            setBoardId(next);
+            // Về bảng cũ → chỗ cũ; sang bảng khác → danh sách đầu, cuối danh sách
+            setListId(next === board.id ? card.listId : '');
+            setIndex(next === board.id ? currentIndex : -1);
+          }}
+        />
+        <div className="grid grid-cols-[1fr_88px] gap-2">
+          <label className="flex flex-col gap-1 text-xs font-semibold text-ink-subtle">
+            Danh sách
+            <select
+              autoFocus
+              value={effectiveListId}
+              disabled={loading || !options.length}
+              onChange={(e) => {
+                const next = e.target.value;
+                setListId(next);
+                // Về lại danh sách cũ → vị trí cũ; sang danh sách khác → cuối danh sách
+                setIndex(sameBoard && next === card.listId ? currentIndex : -1);
+              }}
+              className={SELECT_CLASS}
+            >
+              {loading && <option value="">Đang tải...</option>}
+              {options.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.title}
+                  {l.id === card.listId ? ' (hiện tại)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-semibold text-ink-subtle">
+            Vị trí
+            <select
+              value={effectiveIndex}
+              disabled={loading || !options.length}
+              onChange={(e) => setIndex(Number(e.target.value))}
+              className={SELECT_CLASS}
+            >
+              {Array.from({ length: slots }, (_, i) => (
+                <option key={i} value={i}>
+                  {i + 1}
+                  {sameBoard && effectiveListId === card.listId && i === currentIndex ? ' (hiện tại)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {error && <p className="text-xs font-medium text-danger">{error}</p>}
+        {!loading && !error && !options.length && (
+          <p className="text-xs text-ink-subtle">Bảng này chưa có danh sách nào để chuyển thẻ tới.</p>
+        )}
+        {!sameBoard && (
+          <p className="text-xs text-ink-subtle">
+            Nhãn được ghép theo tên + màu ở bảng đích; người được giao không thuộc bảng đích sẽ bị gỡ khỏi thẻ.
+          </p>
+        )}
+        <button type="submit" disabled={!effectiveListId} className={cn(PRIMARY_BUTTON, 'h-9 w-full')}>
           Di chuyển
         </button>
       </form>

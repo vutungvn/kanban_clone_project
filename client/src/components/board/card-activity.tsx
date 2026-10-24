@@ -672,9 +672,19 @@ function describe(activity: Activity, board: BoardDetail): ReactNode {
     case 'CARD_RESTORED':
       return <>đã khôi phục thẻ này</>;
     case 'CARD_COPIED':
-      return (
+      return d.fromBoard ? (
+        <>
+          đã sao chép thẻ này từ {quote(d.sourceTitle)} (bảng {quote(d.fromBoard)}) vào danh sách {quote(d.listTitle)}
+        </>
+      ) : (
         <>
           đã sao chép thẻ này từ {quote(d.sourceTitle)} vào danh sách {quote(d.listTitle)}
+        </>
+      );
+    case 'CARD_TRANSFERRED':
+      return (
+        <>
+          đã chuyển thẻ này từ bảng {quote(d.fromBoard)} sang bảng {quote(d.toBoard)}
         </>
       );
     default:

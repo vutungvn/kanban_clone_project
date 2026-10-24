@@ -12,7 +12,15 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiAuth, ApiForbidden, ApiNotFound, ApiValidationError } from '../common/swagger/api-responses';
 import { BOARD_NOT_FOUND } from './board-access.service';
-import { ArchiveCountDto, CopyListDto, CreateListDto, ListResponseDto, MoveListDto, UpdateListDto } from './dto/list.dto';
+import {
+  ArchiveCountDto,
+  CopyListDto,
+  CreateListDto,
+  ListResponseDto,
+  MoveListDto,
+  SortListDto,
+  UpdateListDto,
+} from './dto/list.dto';
 import { LIST_NOT_FOUND, ListsService } from './lists.service';
 
 const VIEWER_FORBIDDEN = 'Bạn chỉ có quyền xem bảng này';
@@ -47,7 +55,7 @@ export class ListsController {
   }
 
   @ApiOperation({
-    summary: 'Di chuyển danh sách (kéo thả)',
+    summary: 'Di chuyển danh sách (kéo thả / sang bảng khác)',
     description:
       'Chuyển danh sách tới vị trí `index` trong bảng. Server tự tính `position` từ thứ tự hiện tại trong DB; ' +
       'khi các position quá sát nhau sẽ tự đánh số lại cả bảng.',
@@ -60,6 +68,21 @@ export class ListsController {
   @Patch('lists/:id/move')
   async move(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: MoveListDto) {
     return { list: await this.lists.move(id, user.id, dto) };
+  }
+
+  @ApiOperation({
+    summary: 'Sắp xếp thẻ trong danh sách',
+    description: 'Sắp xếp một lần và lưu thứ tự mới (thẻ thêm sau vẫn vào cuối).',
+  })
+  @ApiParam({ name: 'id', description: 'ID danh sách' })
+  @ApiOkResponse({ type: ListResponseDto })
+  @ApiValidationError(['Kiểu sắp xếp phải là một trong: newest, oldest, due, title'])
+  @ApiForbidden(VIEWER_FORBIDDEN)
+  @ApiNotFound(LIST_NOT_FOUND)
+  @HttpCode(HttpStatus.OK)
+  @Post('lists/:id/sort')
+  async sort(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: SortListDto) {
+    return { list: await this.lists.sort(id, user.id, dto.by) };
   }
 
   @ApiOperation({ summary: 'Lưu trữ danh sách', description: 'Ẩn danh sách cùng mọi thẻ bên trong khỏi bảng, giữ nguyên vị trí.' })

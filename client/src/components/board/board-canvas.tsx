@@ -207,6 +207,7 @@ export function BoardCanvas({
           {(filteredLists ?? board.lists).map((list) => (
             <ListColumn
               key={list.id}
+              board={board}
               list={list}
               totalCards={filteredLists ? board.lists.find((l) => l.id === list.id)?.cards.length : undefined}
               canEdit={canEdit}

@@ -96,7 +96,8 @@ export type ActivityType =
   | 'CHECKLIST_ITEM_UNCOMPLETED'
   | 'CARD_ARCHIVED'
   | 'CARD_RESTORED'
-  | 'CARD_COPIED';
+  | 'CARD_COPIED'
+  | 'CARD_TRANSFERRED';
 
 /**
  * Một mục trong lịch sử hoạt động của thẻ. Bình luận là type COMMENT (nội dung ở `text`).
@@ -139,9 +140,21 @@ export interface List {
 
 /** Thẻ kèm tên danh sách — dùng cho thẻ không có trên bảng (đã lưu trữ, nằm trong danh sách đã lưu trữ). */
 export interface CardWithList extends Card {
+  /** Bảng chứa thẻ — có thể khác bảng đang mở nếu thẻ vừa được chuyển đi */
+  boardId: string;
   listTitle: string;
   listArchived: boolean;
 }
+
+/** Danh sách rút gọn — chọn nơi di chuyển / sao chép sang bảng khác */
+export interface ListSummary {
+  id: string;
+  title: string;
+  cardCount: number;
+}
+
+/** Kiểu sắp xếp thẻ trong danh sách */
+export type ListSort = 'newest' | 'oldest' | 'due' | 'title';
 
 /** Mục "Đã lưu trữ" của bảng */
 export interface BoardArchive {
@@ -210,6 +223,8 @@ export const boardsApi = {
     api<{ starred: boolean }>(`/boards/${id(boardId)}/star`, send('PUT', { starred })),
   /** Thẻ + danh sách đã lưu trữ */
   archive: (boardId: string) => api<BoardArchive>(`/boards/${id(boardId)}/archive`),
+  /** Danh sách (chưa lưu trữ) + số thẻ — chọn đích khi di chuyển / sao chép */
+  lists: (boardId: string) => api<{ lists: ListSummary[] }>(`/boards/${id(boardId)}/lists`).then((r) => r.lists),
 };
 
 export const membersApi = {
@@ -264,9 +279,12 @@ export const listsApi = {
   rename: (listId: string, title: string) =>
     api<{ list: List }>(`/lists/${id(listId)}`, send('PATCH', { title })).then((r) => r.list),
   remove: (listId: string) => api<void>(`/lists/${id(listId)}`, send('DELETE')),
-  /** index: vị trí mới trong bảng (không tính chính danh sách đó) — server tự tính position */
-  move: (listId: string, index: number) =>
-    api<{ list: List }>(`/lists/${id(listId)}/move`, send('PATCH', { index })).then((r) => r.list),
+  /** index: vị trí mới (không tính chính danh sách đó). `boardId`: chuyển sang bảng khác (thẻ đi theo). */
+  move: (listId: string, index: number, boardId?: string) =>
+    api<{ list: List }>(`/lists/${id(listId)}/move`, send('PATCH', { index, ...(boardId && { boardId }) })).then((r) => r.list),
+  /** Sắp xếp thẻ một lần, lưu thứ tự mới */
+  sort: (listId: string, by: ListSort) =>
+    api<{ list: List }>(`/lists/${id(listId)}/sort`, send('POST', { by })).then((r) => r.list),
   setArchived: (listId: string, archived: boolean) =>
     api<{ list: List }>(`/lists/${id(listId)}/${archived ? 'archive' : 'restore'}`, send('POST')).then((r) => r.list),
   /** Lưu trữ mọi thẻ đang hiện trong danh sách */

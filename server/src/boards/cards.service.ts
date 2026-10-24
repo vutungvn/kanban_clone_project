@@ -6,6 +6,7 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { ActivitiesService } from './activities.service';
 import { BoardAccessService } from './board-access.service';
 import { CARD_NOT_FOUND, POSITION_GAP } from './boards.constants';
+import { boardMemberIds, mapLabelsToBoard, rehomeCards } from './board-transfer';
 import { copyCard, copySourceInclude } from './card-copy';
 import { byPosition, cardInclude, notArchived, toCard } from './card-shape';
 import type { CopyCardDto, CreateCardDto, MoveCardDto, UpdateCardDto } from './dto/card.dto';
@@ -125,7 +126,8 @@ export class CardsService {
   /** Kéo thả: chuyển thẻ tới vị trí `index` của danh sách `listId` (cùng bảng). Sang danh sách khác thì ghi lịch sử. */
   async move(cardId: string, userId: string, dto: MoveCardDto) {
     const current = await this.requireEditable(cardId, userId);
-    const target = await this.requireTargetList(dto.listId, current.boardId);
+    const target = await this.requireTargetList(dto.listId, current.boardId, userId);
+    const crossBoard = target.boardId !== current.boardId;
 
     const card = await this.prisma.$transaction(async (tx) => {
       const siblings = await tx.card.findMany({
@@ -139,12 +141,18 @@ export class CardsService {
           await tx.card.update({ where: { id: item.id }, data: { position: item.position } });
         }
       }
-      const card = await tx.card.update({
-        where: { id: cardId },
-        data: { listId: dto.listId, position },
-        include: cardInclude,
-      });
-      if (current.listId !== dto.listId) {
+      await tx.card.update({ where: { id: cardId }, data: { listId: dto.listId, position } });
+      if (crossBoard) {
+        // Nhãn, người được giao, lịch sử, thông báo → theo bảng đích
+        await rehomeCards(tx, [cardId], target.boardId);
+        await this.activities.log(tx, {
+          boardId: target.boardId,
+          cardId,
+          userId,
+          type: ActivityType.CARD_TRANSFERRED,
+          data: { fromBoard: current.boardTitle, toBoard: target.boardTitle, fromList: current.listTitle, toList: target.title },
+        });
+      } else if (current.listId !== dto.listId) {
         await this.activities.log(tx, {
           boardId: current.boardId,
           cardId,
@@ -153,13 +161,15 @@ export class CardsService {
           data: { fromList: current.listTitle, toList: target.title },
         });
       }
-      return toCard(card);
+      return toCard(await tx.card.findUniqueOrThrow({ where: { id: cardId }, include: cardInclude }));
     });
     this.realtime.boardChanged(current.boardId, cardId);
+    if (crossBoard) this.realtime.boardChanged(target.boardId, cardId);
     if (current.listId !== dto.listId) {
       await this.notifyAssignees(cardId, userId, NotificationType.CARD_MOVED, {
         fromList: current.listTitle,
         toList: target.title,
+        ...(crossBoard && { fromBoard: current.boardTitle }),
       });
     }
     return card;
@@ -174,7 +184,7 @@ export class CardsService {
     if (!card) throw new NotFoundException(CARD_NOT_FOUND);
     await this.access.require(card.list.boardId, userId, BoardRole.VIEWER, CARD_NOT_FOUND);
     const { list, ...rest } = card;
-    return { ...toCard(rest), listTitle: list.title, listArchived: !!list.archivedAt };
+    return { ...toCard(rest), boardId: list.boardId, listTitle: list.title, listArchived: !!list.archivedAt };
   }
 
   /** Lưu trữ / khôi phục thẻ. Thẻ giữ nguyên vị trí nên khôi phục là về đúng chỗ cũ. */
@@ -201,7 +211,8 @@ export class CardsService {
    */
   async copy(cardId: string, userId: string, dto: CopyCardDto) {
     const current = await this.requireEditable(cardId, userId);
-    const target = await this.requireTargetList(dto.listId, current.boardId);
+    const target = await this.requireTargetList(dto.listId, current.boardId, userId);
+    const crossBoard = target.boardId !== current.boardId;
     const source = await this.prisma.card.findUniqueOrThrow({ where: { id: cardId }, include: copySourceInclude });
 
     const card = await this.prisma.$transaction(async (tx) => {
@@ -220,17 +231,22 @@ export class CardsService {
         position,
         title: dto.title,
         keep: { labels: dto.keepLabels, members: dto.keepMembers, checklists: dto.keepChecklists, dates: dto.keepDates },
+        // Sang bảng khác: nhãn ghép theo tên + màu, chỉ giữ người được giao là thành viên bảng đích
+        ...(crossBoard && {
+          labelMap: await mapLabelsToBoard(tx, dto.keepLabels ? source.labels.map((l) => l.label) : [], target.boardId),
+          memberIds: await boardMemberIds(tx, target.boardId),
+        }),
       });
       await this.activities.log(tx, {
-        boardId: current.boardId,
+        boardId: target.boardId,
         cardId: card.id,
         userId,
         type: ActivityType.CARD_COPIED,
-        data: { sourceTitle: current.title, listTitle: target.title },
+        data: { sourceTitle: current.title, listTitle: target.title, ...(crossBoard && { fromBoard: current.boardTitle }) },
       });
       return toCard(card);
     });
-    this.realtime.boardChanged(current.boardId, card.id);
+    this.realtime.boardChanged(target.boardId, card.id);
     return card;
   }
 
@@ -349,12 +365,18 @@ export class CardsService {
     if (removed) await this.notifyOne(cardId, actorId, memberId, NotificationType.CARD_UNASSIGNED);
   }
 
-  /** Danh sách đích khi kéo thả / sao chép: phải cùng bảng và chưa lưu trữ. */
-  private async requireTargetList(listId: string, boardId: string) {
-    const list = await this.prisma.list.findUnique({ where: { id: listId }, select: { boardId: true, title: true, archivedAt: true } });
-    // List của bảng khác / đã lưu trữ coi như không tồn tại
-    if (!list || list.boardId !== boardId || list.archivedAt) throw new NotFoundException(LIST_NOT_FOUND);
-    return list;
+  /**
+   * Danh sách đích khi di chuyển / sao chép: chưa lưu trữ. Ở bảng khác thì người thao tác phải là MEMBER trở lên
+   * ở bảng đó (không phải thành viên → 404 như thể không tồn tại; chỉ được xem → 403).
+   */
+  private async requireTargetList(listId: string, sourceBoardId: string, userId: string) {
+    const list = await this.prisma.list.findUnique({
+      where: { id: listId },
+      select: { boardId: true, title: true, archivedAt: true, board: { select: { title: true } } },
+    });
+    if (!list || list.archivedAt) throw new NotFoundException(LIST_NOT_FOUND);
+    if (list.boardId !== sourceBoardId) await this.access.require(list.boardId, userId, BoardRole.MEMBER, LIST_NOT_FOUND);
+    return { boardId: list.boardId, title: list.title, boardTitle: list.board.title };
   }
 
   /** Kiểm tra quyền sửa thẻ, trả về bảng / danh sách chứa thẻ + các giá trị cần so khi ghi lịch sử. */
@@ -368,12 +390,12 @@ export class CardsService {
         dueComplete: true,
         archivedAt: true,
         listId: true,
-        list: { select: { boardId: true, title: true } },
+        list: { select: { boardId: true, title: true, board: { select: { title: true } } } },
       },
     });
     if (!card) throw new NotFoundException(CARD_NOT_FOUND);
     await this.access.require(card.list.boardId, userId, BoardRole.MEMBER, CARD_NOT_FOUND);
     const { list, ...rest } = card;
-    return { ...rest, boardId: list.boardId, listTitle: list.title };
+    return { ...rest, boardId: list.boardId, listTitle: list.title, boardTitle: list.board.title };
   }
 }
