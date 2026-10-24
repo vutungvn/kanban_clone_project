@@ -6,25 +6,28 @@ import { MoreHorizontal, Plus } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
 import { Popover, PopoverHeader, usePopoverAnchor } from '@/components/popover';
 import { toast } from '@/components/toast';
-import { ComingSoonBadge } from '@/components/ui';
 import { errorMessage } from '@/lib/api';
-import type { List } from '@/lib/boards-api';
+import type { BoardDetail, List } from '@/lib/boards-api';
+import { LIST_SORT_OPTIONS } from '@/lib/card-sort';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
 import { CardItem } from './card-item';
 import { AddCardComposer } from './composers';
 import type { DragData } from './dnd';
 import { InlineTitle } from './inline-title';
+import { BoardSelect, SELECT_CLASS, useTargetBoards, useTargetLists } from './move-target';
 
 const COLUMN_CLASS = 'flex max-h-full w-68 shrink-0 flex-col rounded-xl p-2.5';
 
 export function ListColumn({
+  board,
   list,
   totalCards,
   canEdit,
   canDragCards = canEdit,
   actions,
 }: {
+  board: BoardDetail;
   list: List;
   /** Đang lọc: tổng số thẻ thật của danh sách (list.cards chỉ còn thẻ khớp) */
   totalCards?: number;
@@ -123,6 +126,7 @@ export function ListColumn({
 
       <Popover anchor={menu.anchor} onClose={menu.close} label="Thao tác với danh sách">
         <ListMenuContent
+          board={board}
           list={list}
           actions={actions}
           onClose={menu.close}
@@ -157,15 +161,17 @@ export function ListPreview({ list }: { list: List }) {
 
 const MENU_ITEM = 'flex w-full items-center rounded px-2.5 py-1.5 text-left text-sm transition-colors';
 
-type MenuView = 'menu' | 'copy' | 'archive-cards' | 'delete';
+type MenuView = 'menu' | 'copy' | 'move' | 'sort' | 'archive-cards' | 'delete';
 
-/** Menu "..." của danh sách: thêm thẻ, sao chép, lưu trữ, xoá (mỗi thao tác nguy hiểm có bước xác nhận). */
+/** Menu "..." của danh sách: thêm thẻ, sao chép, di chuyển, sắp xếp, lưu trữ, xoá. */
 function ListMenuContent({
+  board,
   list,
   actions,
   onClose,
   onAddCard,
 }: {
+  board: BoardDetail;
   list: List;
   actions: BoardActions;
   onClose: () => void;
@@ -176,6 +182,37 @@ function ListMenuContent({
   const count = list.cards.length;
 
   if (view === 'copy') return <CopyListForm list={list} actions={actions} onBack={back} onClose={onClose} />;
+  if (view === 'move') return <MoveListForm board={board} list={list} actions={actions} onBack={back} onClose={onClose} />;
+
+  if (view === 'sort') {
+    // Danh sách đang lọc chỉ chứa thẻ khớp → đếm theo dữ liệu thật của bảng
+    const total = board.lists.find((l) => l.id === list.id)?.cards.length ?? count;
+    return (
+      <>
+        <PopoverHeader title="Sắp xếp danh sách" onClose={onClose} onBack={back} />
+        {total < 2 ? (
+          <p className="px-1 pb-1 text-sm text-ink-subtle">Cần ít nhất 2 thẻ để sắp xếp.</p>
+        ) : (
+          <>
+            {LIST_SORT_OPTIONS.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => {
+                  onClose();
+                  void actions.sortList(list.id, o.value);
+                }}
+                className={`${MENU_ITEM} hover:bg-list`}
+              >
+                {o.label}
+              </button>
+            ))}
+            <p className="mt-2 px-1 text-xs text-ink-subtle">Sắp xếp một lần; thẻ thêm sau vẫn nằm cuối danh sách.</p>
+          </>
+        )}
+      </>
+    );
+  }
 
   if (view === 'archive-cards') {
     return (
@@ -231,9 +268,13 @@ function ListMenuContent({
       <button type="button" onClick={() => setView('copy')} className={`${MENU_ITEM} hover:bg-list`}>
         Sao chép danh sách...
       </button>
-      <UpcomingItem label="Di chuyển danh sách..." />
+      <button type="button" onClick={() => setView('move')} className={`${MENU_ITEM} hover:bg-list`}>
+        Di chuyển danh sách...
+      </button>
       <hr className="my-1.5 border-surface-high" />
-      <UpcomingItem label="Sắp xếp theo..." />
+      <button type="button" onClick={() => setView('sort')} className={`${MENU_ITEM} hover:bg-list`}>
+        Sắp xếp theo...
+      </button>
       <hr className="my-1.5 border-surface-high" />
       <button
         type="button"
@@ -330,11 +371,91 @@ function CopyListForm({
   );
 }
 
-function UpcomingItem({ label }: { label: string }) {
+/**
+ * Di chuyển danh sách: chọn bảng (bảng đang mở hoặc bảng khác mình có quyền sửa) + vị trí.
+ * Sang bảng khác: thẻ đi theo, nhãn ghép theo tên + màu, người được giao không thuộc bảng đích bị gỡ.
+ */
+function MoveListForm({
+  board,
+  list,
+  actions,
+  onBack,
+  onClose,
+}: {
+  board: BoardDetail;
+  list: List;
+  actions: BoardActions;
+  onBack: () => void;
+  onClose: () => void;
+}) {
+  const boards = useTargetBoards(board);
+  const [boardId, setBoardId] = useState(board.id);
+  const target = useTargetLists(boardId, board);
+  const currentIndex = board.lists.findIndex((l) => l.id === list.id);
+  // -1 = cuối bảng
+  const [index, setIndex] = useState(currentIndex);
+  const sameBoard = boardId === board.id;
+  const slots = sameBoard ? board.lists.length : (target.lists?.length ?? 0) + 1;
+  const effectiveIndex = index < 0 ? slots - 1 : Math.min(index, slots - 1);
+  const targetBoard = boards.find((b) => b.id === boardId);
+  const cardCount = board.lists.find((l) => l.id === list.id)?.cards.length ?? list.cards.length;
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (sameBoard && effectiveIndex === currentIndex) return onClose();
+    onClose();
+    const ok = await actions.moveList(list.id, boardId, effectiveIndex);
+    if (ok && !sameBoard) toast.success(`Đã chuyển danh sách "${list.title}" sang bảng "${targetBoard?.title ?? ''}"`);
+  }
+
   return (
-    <button type="button" disabled className={`${MENU_ITEM} cursor-not-allowed justify-between text-ink/50`}>
-      {label}
-      <ComingSoonBadge />
-    </button>
+    <>
+      <PopoverHeader title="Di chuyển danh sách" onClose={onClose} onBack={onBack} />
+      <form noValidate onSubmit={submit} className="flex flex-col gap-3">
+        <BoardSelect
+          boards={boards}
+          value={boardId}
+          currentId={board.id}
+          onChange={(next) => {
+            setBoardId(next);
+            setIndex(next === board.id ? currentIndex : -1);
+          }}
+        />
+        <label className="flex flex-col gap-1 text-xs font-semibold text-ink-subtle">
+          Vị trí
+          <select
+            value={effectiveIndex}
+            disabled={target.loading}
+            onChange={(e) => setIndex(Number(e.target.value))}
+            className={SELECT_CLASS}
+          >
+            {target.loading ? (
+              <option value={effectiveIndex}>Đang tải...</option>
+            ) : (
+              Array.from({ length: slots }, (_, i) => (
+                <option key={i} value={i}>
+                  {i + 1}
+                  {sameBoard && i === currentIndex ? ' (hiện tại)' : ''}
+                </option>
+              ))
+            )}
+          </select>
+        </label>
+        {target.error && <p className="text-xs font-medium text-danger">{target.error}</p>}
+        {!sameBoard && (
+          <p className="text-xs text-ink-subtle">
+            {cardCount} thẻ sẽ đi theo danh sách. Nhãn được ghép theo tên + màu; người được giao không thuộc bảng đích sẽ
+            bị gỡ khỏi thẻ.
+          </p>
+        )}
+        <button
+          type="submit"
+          disabled={target.loading || !!target.error}
+          className="h-9 w-full rounded bg-brand text-sm font-medium text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
+        >
+          Di chuyển
+        </button>
+      </form>
+    </>
   );
 }

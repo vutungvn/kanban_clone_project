@@ -23,6 +23,7 @@ import {
   StarResponseDto,
   UpdateBoardDto,
 } from './dto/board.dto';
+import { ListSummariesResponseDto } from './dto/list.dto';
 
 const ADMIN_ONLY = 'Chỉ quản trị viên của bảng mới được thực hiện thao tác này';
 
@@ -83,6 +84,18 @@ export class BoardsController {
   @Delete(':id')
   async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     await this.boards.remove(id, user.id);
+  }
+
+  @ApiOperation({
+    summary: 'Danh sách của bảng (rút gọn)',
+    description: 'Tên + số thẻ của các danh sách chưa lưu trữ — dùng khi chọn nơi di chuyển / sao chép sang bảng này.',
+  })
+  @ApiParam({ name: 'id', description: 'ID bảng' })
+  @ApiOkResponse({ type: ListSummariesResponseDto })
+  @ApiNotFound(BOARD_NOT_FOUND)
+  @Get(':id/lists')
+  async lists(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return { lists: await this.boards.listSummaries(id, user.id) };
   }
 
   @ApiOperation({

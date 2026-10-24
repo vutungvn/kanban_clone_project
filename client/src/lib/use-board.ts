@@ -20,11 +20,13 @@ import {
   type Card,
   type CardInput,
   type CopyCardInput,
+  type ListSort,
   type Checklist,
   type ChecklistItem,
   type List,
 } from './boards-api';
 import { boardsStore } from './boards-store';
+import { sortCards } from './card-sort';
 import type { LabelColor } from './labels';
 
 type Status = 'loading' | 'ready' | 'not-found' | 'error';
@@ -301,29 +303,76 @@ export function useBoard(boardId: string) {
         }
       },
 
-      /** Chuyển thẻ bằng menu "Di chuyển" (không kéo thả): `index` không tính chính thẻ đó. */
+      /**
+       * Chuyển thẻ bằng menu "Di chuyển" (không kéo thả): `index` không tính chính thẻ đó.
+       * `listId` thuộc bảng khác → thẻ biến khỏi bảng này. Trả về false nếu lỗi (đã hoàn tác + toast).
+       */
       moveCard: async (cardId: string, listId: string, index: number) => {
         const current = boardRef.current;
         const card = current?.lists.flatMap((l) => l.cards).find((c) => c.id === cardId);
-        if (!current || !card) return;
+        if (!current || !card) return false;
         const rollback = current.lists;
         const without = rollback.map((l) => ({ ...l, cards: l.cards.filter((c) => c.id !== cardId) }));
         const target = without.find((l) => l.id === listId);
-        if (!target) return;
-        const at = Math.min(index, target.cards.length);
-        if (card.listId === listId && rollback.find((l) => l.id === listId)?.cards[at]?.id === cardId) return;
-        const cards = [...target.cards];
-        cards.splice(at, 0, { ...card, listId });
-        commit({ ...current, lists: without.map((l) => (l.id === listId ? { ...l, cards } : l)) });
+        let at = index;
+        if (target) {
+          at = Math.min(index, target.cards.length);
+          if (card.listId === listId && rollback.find((l) => l.id === listId)?.cards[at]?.id === cardId) return true;
+          const cards = [...target.cards];
+          cards.splice(at, 0, { ...card, listId });
+          commit({ ...current, lists: without.map((l) => (l.id === listId ? { ...l, cards } : l)) });
+        } else {
+          commit({ ...current, lists: without }); // sang bảng khác
+        }
         begin();
         try {
           await cardsApi.move(cardId, listId, at);
+          return true;
         } catch (e) {
           rollbackMove(rollback, e);
+          return false;
         } finally {
           end();
         }
       },
+
+      /**
+       * Di chuyển danh sách bằng menu: cùng bảng → đổi vị trí (`index` không tính chính nó);
+       * bảng khác → danh sách (kèm thẻ) biến khỏi bảng này. Trả về false nếu lỗi.
+       */
+      moveList: async (listId: string, boardId: string, index: number) => {
+        const current = boardRef.current;
+        const list = current?.lists.find((l) => l.id === listId);
+        if (!current || !list) return false;
+        const rollback = current.lists;
+        const others = rollback.filter((l) => l.id !== listId);
+        const sameBoard = boardId === current.id;
+        if (sameBoard) {
+          const lists = [...others];
+          lists.splice(Math.min(index, lists.length), 0, list);
+          if (lists.every((l, i) => l.id === rollback[i].id)) return true;
+          commit({ ...current, lists });
+        } else {
+          commit({ ...current, lists: others });
+        }
+        begin();
+        try {
+          await listsApi.move(listId, index, sameBoard ? undefined : boardId);
+          return true;
+        } catch (e) {
+          rollbackMove(rollback, e);
+          return false;
+        } finally {
+          end();
+        }
+      },
+
+      /** Sắp xếp thẻ trong danh sách (một lần, lưu thứ tự mới). */
+      sortList: (listId: string, by: ListSort) =>
+        optimistic(
+          (b) => mapList(b, listId, (l) => ({ ...l, cards: sortCards(l.cards, by) })),
+          () => listsApi.sort(listId, by),
+        ),
 
       /** Cập nhật cục bộ trạng thái sao (nút sao tự gọi API qua boardsStore). */
       setStarredLocal: (starred: boolean) => {

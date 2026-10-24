@@ -108,6 +108,17 @@ export class BoardsService {
     this.realtime.boardDeleted(boardId);
   }
 
+  /** Danh sách (chưa lưu trữ) của bảng + số thẻ — gọn nhẹ, dùng cho ô chọn đích khi di chuyển / sao chép. */
+  async listSummaries(boardId: string, userId: string) {
+    await this.access.require(boardId, userId);
+    const lists = await this.prisma.list.findMany({
+      where: { boardId, ...notArchived },
+      orderBy: byPosition,
+      select: { id: true, title: true, _count: { select: { cards: { where: notArchived } } } },
+    });
+    return lists.map(({ _count, ...list }) => ({ ...list, cardCount: _count.cards }));
+  }
+
   /** Mục đã lưu trữ của bảng: thẻ lưu trữ riêng lẻ + danh sách lưu trữ. Mọi vai trò đều xem được. */
   async archive(boardId: string, userId: string) {
     await this.access.require(boardId, userId);

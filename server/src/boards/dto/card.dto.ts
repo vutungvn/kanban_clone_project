@@ -74,7 +74,10 @@ export class CopyCardDto {
   @CardTitleRules()
   title: string;
 
-  @ApiProperty({ example: 'cmglist00000vq8h3b1c2d4e', description: 'Danh sách đích (cùng bảng, chưa lưu trữ)' })
+  @ApiProperty({
+    example: 'cmglist00000vq8h3b1c2d4e',
+    description: 'Danh sách đích (chưa lưu trữ) — có thể ở bảng khác nếu bạn có quyền MEMBER ở bảng đó',
+  })
   @IsString()
   @IsNotEmpty({ message: 'Vui lòng chọn danh sách đích' })
   listId: string;
@@ -106,7 +109,12 @@ export class CopyCardDto {
 }
 
 export class MoveCardDto {
-  @ApiProperty({ example: 'cmglist00000vq8h3b1c2d4e', description: 'Danh sách đích (phải cùng bảng; có thể là danh sách hiện tại)' })
+  @ApiProperty({
+    example: 'cmglist00000vq8h3b1c2d4e',
+    description:
+      'Danh sách đích (chưa lưu trữ; có thể là danh sách hiện tại). Ở bảng khác thì cần quyền MEMBER ở bảng đó — ' +
+      'nhãn được ghép theo tên + màu, người được giao không thuộc bảng đích bị gỡ.',
+  })
   @IsString()
   @IsNotEmpty({ message: 'Vui lòng chọn danh sách đích' })
   listId: string;
@@ -175,6 +183,9 @@ export class CardResponseDto {
 
 /** Thẻ kèm tên danh sách — dùng khi thẻ không có trong dữ liệu bảng (đã lưu trữ, mở qua link). */
 export class CardWithListDto extends CardDto {
+  @ApiProperty({ example: 'cmgboard0000vq8h3b1c2d4e', description: 'Bảng chứa thẻ (thẻ có thể đã được chuyển sang bảng khác)' })
+  boardId: string;
+
   @ApiProperty({ example: 'Cần làm' })
   listTitle: string;
 

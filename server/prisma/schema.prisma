@@ -232,6 +232,7 @@ enum ActivityType {
   CARD_ARCHIVED
   CARD_RESTORED
   CARD_COPIED
+  CARD_TRANSFERRED
 }
 
 // Lịch sử hoạt động của thẻ; bình luận cũng là 1 hoạt động (type COMMENT, nội dung ở `text`).
