@@ -3,6 +3,8 @@ import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ActivitiesController } from './activities.controller';
 import { ActivitiesService } from './activities.service';
+import { AttachmentsController } from './attachments.controller';
+import { AttachmentsService } from './attachments.service';
 import { BoardAccessService } from './board-access.service';
 import { BoardsGateway } from './boards.gateway';
 import { BoardsController } from './boards.controller';
@@ -20,7 +22,7 @@ import { ListsService } from './lists.service';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
 
-/** Bảng, thành viên, liên kết mời, danh sách, thẻ, nhãn, checklist, hoạt động — gom chung vì luôn đi cùng nhau và dùng chung kiểm tra quyền. */
+/** Bảng, thành viên, liên kết mời, danh sách, thẻ, nhãn, checklist, tệp đính kèm, hoạt động — gom chung vì luôn đi cùng nhau và dùng chung kiểm tra quyền. */
 @Module({
   imports: [AuthModule, NotificationsModule],
   controllers: [
@@ -32,6 +34,7 @@ import { MembersService } from './members.service';
     CardsController,
     LabelsController,
     ChecklistsController,
+    AttachmentsController,
     ActivitiesController,
   ],
   providers: [
@@ -43,6 +46,7 @@ import { MembersService } from './members.service';
     CardsService,
     LabelsService,
     ChecklistsService,
+    AttachmentsService,
     ActivitiesService,
     BoardsGateway,
   ],

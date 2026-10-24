@@ -3,13 +3,15 @@ import { ActivityType, BoardRole, NotificationType, Prisma } from '@prisma/clien
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { isImageType } from '../storage/files';
+import { StorageService } from '../storage/storage.service';
 import { ActivitiesService } from './activities.service';
 import { BoardAccessService } from './board-access.service';
 import { CARD_NOT_FOUND, POSITION_GAP } from './boards.constants';
 import { boardMemberIds, mapLabelsToBoard, rehomeCards } from './board-transfer';
 import { copyCard, copySourceInclude } from './card-copy';
 import { byPosition, cardInclude, notArchived, toCard } from './card-shape';
-import type { CopyCardDto, CreateCardDto, MoveCardDto, UpdateCardDto } from './dto/card.dto';
+import type { CopyCardDto, CreateCardDto, MoveCardDto, SetCoverDto, UpdateCardDto } from './dto/card.dto';
 import { LIST_NOT_FOUND } from './lists.service';
 import { placeAt } from './position';
 
@@ -18,6 +20,9 @@ export const LABEL_NOT_FOUND = 'Không tìm thấy nhãn';
 export const NOT_BOARD_MEMBER = 'Người này không phải thành viên của bảng';
 export const START_AFTER_DUE = 'Ngày bắt đầu phải trước hoặc bằng hạn chót';
 export const NO_DUE_DATE = 'Thẻ chưa có hạn chót';
+export const ATTACHMENT_NOT_FOUND = 'Không tìm thấy tệp đính kèm';
+export const COVER_REQUIRED = 'Vui lòng chọn 1 màu hoặc 1 ảnh làm ảnh bìa';
+export const COVER_NOT_IMAGE = 'Chỉ dùng được ảnh JPG, PNG, GIF, WEBP làm ảnh bìa';
 
 /** Vi phạm khoá ngoại — thẻ / nhãn vừa bị xoá giữa chừng. */
 const isForeignKeyError = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003';
@@ -36,6 +41,7 @@ export class CardsService {
     private readonly activities: ActivitiesService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
+    private readonly storage: StorageService,
   ) {}
 
   /** Báo cho những người đang được giao thẻ (trừ người thao tác). */
@@ -230,7 +236,13 @@ export class CardsService {
         listId: dto.listId,
         position,
         title: dto.title,
-        keep: { labels: dto.keepLabels, members: dto.keepMembers, checklists: dto.keepChecklists, dates: dto.keepDates },
+        keep: {
+          labels: dto.keepLabels,
+          members: dto.keepMembers,
+          checklists: dto.keepChecklists,
+          dates: dto.keepDates,
+          attachments: dto.keepAttachments,
+        },
         // Sang bảng khác: nhãn ghép theo tên + màu, chỉ giữ người được giao là thành viên bảng đích
         ...(crossBoard && {
           labelMap: await mapLabelsToBoard(tx, dto.keepLabels ? source.labels.map((l) => l.label) : [], target.boardId),
@@ -252,7 +264,36 @@ export class CardsService {
 
   async remove(cardId: string, userId: string) {
     const { boardId } = await this.requireEditable(cardId, userId);
+    const files = await this.storage.keysOf({ cardId });
     await this.prisma.card.delete({ where: { id: cardId } });
+    this.realtime.boardChanged(boardId, cardId);
+    void this.storage.discard(files);
+  }
+
+  /** Đặt ảnh bìa: 1 màu hoặc 1 ảnh đính kèm của chính thẻ (thay cho ảnh bìa cũ). */
+  async setCover(cardId: string, userId: string, dto: SetCoverDto) {
+    if (!dto.color === !dto.attachmentId) throw new BadRequestException(COVER_REQUIRED);
+    const { boardId } = await this.requireEditable(cardId, userId);
+    if (dto.attachmentId) {
+      const file = await this.prisma.attachment.findUnique({ where: { id: dto.attachmentId }, select: { cardId: true, mimeType: true } });
+      if (!file || file.cardId !== cardId) throw new NotFoundException(ATTACHMENT_NOT_FOUND);
+      if (!isImageType(file.mimeType)) throw new BadRequestException(COVER_NOT_IMAGE);
+    }
+    try {
+      await this.prisma.card.update({
+        where: { id: cardId },
+        data: { coverColor: dto.color ?? null, coverAttachmentId: dto.attachmentId ?? null },
+      });
+    } catch (e) {
+      if (isForeignKeyError(e)) throw new NotFoundException(ATTACHMENT_NOT_FOUND); // ảnh vừa bị xoá
+      throw e;
+    }
+    this.realtime.boardChanged(boardId, cardId);
+  }
+
+  async removeCover(cardId: string, userId: string) {
+    const { boardId } = await this.requireEditable(cardId, userId);
+    await this.prisma.card.update({ where: { id: cardId }, data: { coverColor: null, coverAttachmentId: null } });
     this.realtime.boardChanged(boardId, cardId);
   }
 

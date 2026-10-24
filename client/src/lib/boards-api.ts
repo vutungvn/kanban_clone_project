@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api, upload } from './api';
 import type { BoardBackground } from './board-backgrounds';
 import type { LabelColor } from './labels';
 
@@ -57,6 +57,21 @@ export interface Checklist {
   items: ChecklistItem[];
 }
 
+/** Tệp đính kèm của thẻ. `previewUrl`: ảnh thu nhỏ — null nếu không phải ảnh JPG / PNG / GIF / WEBP. */
+export interface Attachment {
+  id: string;
+  cardId: string;
+  name: string;
+  url: string;
+  previewUrl: string | null;
+  mimeType: string;
+  /** Byte */
+  size: number;
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+}
+
 export interface Card {
   id: string;
   listId: string;
@@ -74,10 +89,18 @@ export interface Card {
   /** ID thành viên được giao — chi tiết ở `board.members` */
   memberIds: string[];
   checklists: Checklist[];
+  /** Mới nhất trước */
+  attachments: Attachment[];
+  /** Ảnh bìa: 1 màu (key màu chuẩn của nhãn) HOẶC 1 ảnh trong `attachments` */
+  coverColor: string | null;
+  coverAttachmentId: string | null;
   commentCount: number;
   createdAt: string;
   updatedAt: string;
 }
+
+/** Đặt ảnh bìa: màu hoặc ảnh đính kèm; null = gỡ */
+export type CoverInput = { color: string } | { attachmentId: string } | null;
 
 export type ActivityType =
   | 'COMMENT'
@@ -97,7 +120,9 @@ export type ActivityType =
   | 'CARD_ARCHIVED'
   | 'CARD_RESTORED'
   | 'CARD_COPIED'
-  | 'CARD_TRANSFERRED';
+  | 'CARD_TRANSFERRED'
+  | 'ATTACHMENT_ADDED'
+  | 'ATTACHMENT_REMOVED';
 
 /**
  * Một mục trong lịch sử hoạt động của thẻ. Bình luận là type COMMENT (nội dung ở `text`).
@@ -172,6 +197,7 @@ export interface CopyCardInput {
   keepMembers: boolean;
   keepChecklists: boolean;
   keepDates: boolean;
+  keepAttachments: boolean;
 }
 
 export interface BoardDetail extends BoardSummary {
@@ -315,6 +341,20 @@ export const cardsApi = {
   /** Giao / bỏ giao thẻ cho thành viên của bảng */
   setMember: (cardId: string, userId: string, on: boolean) =>
     api<void>(`/cards/${id(cardId)}/members/${id(userId)}`, send(on ? 'PUT' : 'DELETE')),
+  setCover: (cardId: string, cover: CoverInput) =>
+    api<void>(`/cards/${id(cardId)}/cover`, cover ? send('PUT', cover) : send('DELETE')),
+};
+
+export const attachmentsApi = {
+  /** Trả về cả thẻ sau khi đính kèm (ảnh đầu tiên của thẻ chưa có ảnh bìa sẽ thành ảnh bìa) */
+  upload: (cardId: string, file: File, onProgress?: (fraction: number) => void) => {
+    const form = new FormData();
+    form.append('file', file);
+    return upload<{ attachment: Attachment; card: Card }>(`/cards/${id(cardId)}/attachments`, form, onProgress);
+  },
+  rename: (attachmentId: string, name: string) =>
+    api<{ attachment: Attachment }>(`/attachments/${id(attachmentId)}`, send('PATCH', { name })).then((r) => r.attachment),
+  remove: (attachmentId: string) => api<void>(`/attachments/${id(attachmentId)}`, send('DELETE')),
 };
 
 export const activitiesApi = {

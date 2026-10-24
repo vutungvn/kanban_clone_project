@@ -3,6 +3,8 @@ dist/
 .next/
 out/
 coverage/
+# Tệp đính kèm khi dev (chưa cấu hình Cloudinary)
+server/uploads/
 *.tsbuildinfo
 next-env.d.ts
 

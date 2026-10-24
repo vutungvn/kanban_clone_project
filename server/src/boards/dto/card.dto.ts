@@ -1,9 +1,10 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsInt, IsISO8601, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsISO8601, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { blankToNull, trimString } from '../../common/transforms';
-import { MAX_CARD_DESCRIPTION, MAX_CARD_TITLE } from '../boards.constants';
+import { COVER_COLORS, MAX_CARD_DESCRIPTION, MAX_CARD_TITLE } from '../boards.constants';
+import { AttachmentDto } from './attachment.dto';
 import { ChecklistDto } from './checklist.dto';
 
 const CardTitleRules = () =>
@@ -106,6 +107,25 @@ export class CopyCardDto {
   @IsOptional()
   @IsBoolean({ message: 'keepDates phải là true hoặc false' })
   keepDates: boolean = true;
+
+  @ApiPropertyOptional({ default: true, description: 'Giữ tệp đính kèm (dùng chung tệp với thẻ gốc) và ảnh bìa là ảnh đính kèm' })
+  @IsOptional()
+  @IsBoolean({ message: 'keepAttachments phải là true hoặc false' })
+  keepAttachments: boolean = true;
+}
+
+/** Gửi đúng 1 trong 2: màu hoặc ảnh đính kèm. */
+export class SetCoverDto {
+  @ApiPropertyOptional({ enum: COVER_COLORS, example: 'blue', description: 'Màu ảnh bìa' })
+  @IsOptional()
+  @IsIn(COVER_COLORS, { message: 'Màu ảnh bìa không hợp lệ' })
+  color?: string;
+
+  @ApiPropertyOptional({ example: 'cmgfile00000vq8h3b1c2d4e', description: 'Ảnh đính kèm của chính thẻ (JPG / PNG / GIF / WEBP)' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty({ message: 'Vui lòng chọn ảnh' })
+  attachmentId?: string;
 }
 
 export class MoveCardDto {
@@ -169,6 +189,20 @@ export class CardDto {
   @ApiProperty({ type: () => [ChecklistDto], description: 'Các checklist kèm mục, đã sắp theo position' })
   checklists: ChecklistDto[];
 
+  @ApiProperty({ type: () => [AttachmentDto], description: 'Tệp đính kèm, mới nhất trước' })
+  attachments: AttachmentDto[];
+
+  @ApiProperty({ type: String, nullable: true, enum: COVER_COLORS, example: null, description: 'Ảnh bìa dạng màu' })
+  coverColor: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: 'cmgfile00000vq8h3b1c2d4e',
+    description: 'Ảnh bìa là ảnh đính kèm (id trong `attachments`). Có tối đa 1 trong coverColor / coverAttachmentId',
+  })
+  coverAttachmentId: string | null;
+
   @ApiProperty({ type: String, format: 'date-time', example: '2026-01-15T08:30:00.000Z' })
   createdAt: Date;
 
@@ -178,6 +212,14 @@ export class CardDto {
 
 export class CardResponseDto {
   @ApiProperty({ type: CardDto })
+  card: CardDto;
+}
+
+export class UploadAttachmentResponseDto {
+  @ApiProperty({ type: AttachmentDto })
+  attachment: AttachmentDto;
+
+  @ApiProperty({ type: CardDto, description: 'Thẻ sau khi đính kèm (ảnh đầu tiên của thẻ chưa có ảnh bìa sẽ thành ảnh bìa)' })
   card: CardDto;
 }
 

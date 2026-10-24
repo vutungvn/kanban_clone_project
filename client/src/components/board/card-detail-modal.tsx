@@ -25,12 +25,20 @@ import { Avatar } from '@/components/avatar';
 import { Modal, ModalCloseButton } from '@/components/modal';
 import { Popover, PopoverHeader, usePopoverAnchor } from '@/components/popover';
 import { toast } from '@/components/toast';
-import { ComingSoonBadge } from '@/components/ui';
 import { ApiError, errorMessage } from '@/lib/api';
+import { cardCover } from '@/lib/attachments';
 import { cardsApi, type BoardDetail, type Card, type CardWithList } from '@/lib/boards-api';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
 import { CardActivity } from './card-activity';
+import {
+  AttachmentSection,
+  CardCoverBanner,
+  CoverPopoverContent,
+  FileDropZone,
+  HiddenFileInput,
+  useAttachmentUploads,
+} from './card-attachments';
 import { resolveCard } from './card-badges';
 import { CopyCardContent } from './card-copy';
 import { BoardSelect, SELECT_CLASS, useTargetBoards, useTargetLists, type TargetBoard } from './move-target';
@@ -197,112 +205,134 @@ function CardModal({
   const labelsPop = usePopoverAnchor();
   const datesPop = usePopoverAnchor();
   const checklistPop = usePopoverAnchor();
+  const coverPop = usePopoverAnchor();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const { uploads, uploadFiles } = useAttachmentUploads(card.id, actions);
+  const pickFiles = () => fileInput.current?.click();
+  const hasCover = !!cardCover(card);
   // Gợi ý "Tham gia" khi mình chưa được giao thẻ này
   const canJoin = canEdit && !!meId && board.members.some((m) => m.id === meId) && !card.memberIds.includes(meId);
 
   return (
     <Modal label={`Thẻ ${card.title}`} onClose={onClose} className="max-w-192">
-      {archived && (
-        <ArchivedBanner
-          archived={archived}
-          canManage={canManage}
-          onRestore={async () => {
-            try {
-              await actions.restoreCard(card.id);
-              toast.success('Đã khôi phục thẻ');
-            } catch (e) {
-              toast.error(errorMessage(e));
-            }
-          }}
-          onDelete={remove.toggle}
-          deleteExpanded={!!remove.anchor}
-        />
-      )}
-      <ModalCloseButton onClick={onClose} />
-
-      <header className="flex items-start gap-3 px-6 pt-6 pb-3">
-        <CreditCard size={24} className="mt-1.5 shrink-0 text-ink-subtle" aria-hidden />
-        <div className="min-w-0 flex-1 pr-8">
-          <CardTitle card={card} canEdit={canEdit} onSave={(title) => void actions.updateCard(card.id, { title })} />
-          <p className="mt-0.5 text-sm text-ink-subtle">
-            trong danh sách{' '}
-            {canEdit ? (
-              <button
-                type="button"
-                onClick={move.toggle}
-                aria-haspopup="dialog"
-                aria-expanded={!!move.anchor}
-                title="Di chuyển thẻ"
-                className="font-semibold text-ink underline underline-offset-2 transition-colors hover:text-brand"
-              >
-                {listTitle}
-              </button>
-            ) : (
-              <strong className="font-semibold text-ink">{listTitle}</strong>
-            )}
-          </p>
-        </div>
-      </header>
-
-      <div className={cn('grid grid-cols-1 gap-6 px-6 pt-2 pb-8', canEdit && 'md:grid-cols-[1fr_200px]')}>
-        <div className="flex min-w-0 flex-col gap-6">
-          <CardMeta
-            board={board}
-            card={card}
-            canEdit={canEdit}
-            membersPop={membersPop}
-            labelsPop={labelsPop}
-            datesPop={datesPop}
-            onToggleComplete={(dueComplete) => void actions.updateCard(card.id, { dueComplete })}
+      <FileDropZone enabled={canEdit} onFiles={(files) => void uploadFiles(files)}>
+        {archived && (
+          <ArchivedBanner
+            archived={archived}
+            canManage={canManage}
+            onRestore={async () => {
+              try {
+                await actions.restoreCard(card.id);
+                toast.success('Đã khôi phục thẻ');
+              } catch (e) {
+                toast.error(errorMessage(e));
+              }
+            }}
+            onDelete={remove.toggle}
+            deleteExpanded={!!remove.anchor}
           />
-          <Description card={card} canEdit={canEdit} onSave={(description) => void actions.updateCard(card.id, { description })} />
-          {card.checklists.map((checklist) => (
-            <ChecklistSection key={checklist.id} checklist={checklist} canEdit={canEdit} actions={actions} />
-          ))}
-          <CardActivity board={board} card={card} actions={actions} readOnly={!!archived} />
-        </div>
+        )}
+        <CardCoverBanner card={card} canEdit={canEdit} roundedTop={!archived} expanded={!!coverPop.anchor} onEdit={coverPop.toggle} />
+        <ModalCloseButton onClick={onClose} onCover={hasCover && !archived} />
 
-        {canEdit && (
-          <aside className="flex flex-col gap-6">
-            {canJoin && (
-              <SidebarGroup title="Gợi ý">
-                <button type="button" onClick={() => void actions.setCardMember(card.id, meId!, true)} className={SIDEBAR_BUTTON}>
-                  <UserPlus size={18} className="text-ink-subtle" />
-                  Tham gia
+        <header className="flex items-start gap-3 px-6 pt-6 pb-3">
+          <CreditCard size={24} className="mt-1.5 shrink-0 text-ink-subtle" aria-hidden />
+          <div className="min-w-0 flex-1 pr-8">
+            <CardTitle card={card} canEdit={canEdit} onSave={(title) => void actions.updateCard(card.id, { title })} />
+            <p className="mt-0.5 text-sm text-ink-subtle">
+              trong danh sách{' '}
+              {canEdit ? (
+                <button
+                  type="button"
+                  onClick={move.toggle}
+                  aria-haspopup="dialog"
+                  aria-expanded={!!move.anchor}
+                  title="Di chuyển thẻ"
+                  className="font-semibold text-ink underline underline-offset-2 transition-colors hover:text-brand"
+                >
+                  {listTitle}
+                </button>
+              ) : (
+                <strong className="font-semibold text-ink">{listTitle}</strong>
+              )}
+            </p>
+          </div>
+        </header>
+
+        <div className={cn('grid grid-cols-1 gap-6 px-6 pt-2 pb-8', canEdit && 'md:grid-cols-[1fr_200px]')}>
+          <div className="flex min-w-0 flex-col gap-6">
+            <CardMeta
+              board={board}
+              card={card}
+              canEdit={canEdit}
+              membersPop={membersPop}
+              labelsPop={labelsPop}
+              datesPop={datesPop}
+              onToggleComplete={(dueComplete) => void actions.updateCard(card.id, { dueComplete })}
+            />
+            <Description card={card} canEdit={canEdit} onSave={(description) => void actions.updateCard(card.id, { description })} />
+            <AttachmentSection card={card} canEdit={canEdit} actions={actions} uploads={uploads} onAdd={pickFiles} />
+            {card.checklists.map((checklist) => (
+              <ChecklistSection key={checklist.id} checklist={checklist} canEdit={canEdit} actions={actions} />
+            ))}
+            <CardActivity board={board} card={card} actions={actions} readOnly={!!archived} />
+          </div>
+
+          {canEdit && (
+            <aside className="flex flex-col gap-6">
+              {canJoin && (
+                <SidebarGroup title="Gợi ý">
+                  <button type="button" onClick={() => void actions.setCardMember(card.id, meId!, true)} className={SIDEBAR_BUTTON}>
+                    <UserPlus size={18} className="text-ink-subtle" />
+                    Tham gia
+                  </button>
+                </SidebarGroup>
+              )}
+
+              <SidebarGroup title="Thêm vào thẻ">
+                <SidebarButton icon={UserRound} label="Thành viên" onClick={membersPop.toggle} expanded={!!membersPop.anchor} />
+                <SidebarButton icon={Tag} label="Nhãn" onClick={labelsPop.toggle} expanded={!!labelsPop.anchor} />
+                <SidebarButton icon={SquareCheck} label="Việc cần làm" onClick={checklistPop.toggle} expanded={!!checklistPop.anchor} />
+                <SidebarButton icon={Calendar} label="Ngày" onClick={datesPop.toggle} expanded={!!datesPop.anchor} />
+                <button type="button" onClick={pickFiles} className={SIDEBAR_BUTTON}>
+                  <Paperclip size={18} className="text-ink-subtle" />
+                  Đính kèm
+                </button>
+                {!hasCover && <SidebarButton icon={ImageIcon} label="Ảnh bìa" onClick={coverPop.toggle} expanded={!!coverPop.anchor} />}
+              </SidebarGroup>
+
+              <SidebarGroup title="Thao tác">
+                <SidebarButton icon={ArrowRight} label="Di chuyển" onClick={move.toggle} expanded={!!move.anchor} />
+                <SidebarButton icon={Copy} label="Sao chép" onClick={copy.toggle} expanded={!!copy.anchor} />
+                <button type="button" onClick={onArchive} className={SIDEBAR_BUTTON}>
+                  <Archive size={18} className="text-ink-subtle" />
+                  Lưu trữ
+                </button>
+                <button
+                  type="button"
+                  onClick={remove.toggle}
+                  aria-haspopup="dialog"
+                  aria-expanded={!!remove.anchor}
+                  className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-sm font-medium text-danger transition-colors hover:bg-danger-soft/40 aria-expanded:bg-danger-soft/40"
+                >
+                  <Trash2 size={18} />
+                  Xoá thẻ
                 </button>
               </SidebarGroup>
-            )}
+            </aside>
+          )}
+        </div>
+      </FileDropZone>
+      <HiddenFileInput inputRef={fileInput} onFiles={(files) => void uploadFiles(files)} />
 
-            <SidebarGroup title="Thêm vào thẻ">
-              <SidebarButton icon={UserRound} label="Thành viên" onClick={membersPop.toggle} expanded={!!membersPop.anchor} />
-              <SidebarButton icon={Tag} label="Nhãn" onClick={labelsPop.toggle} expanded={!!labelsPop.anchor} />
-              <SidebarButton icon={SquareCheck} label="Việc cần làm" onClick={checklistPop.toggle} expanded={!!checklistPop.anchor} />
-              <SidebarButton icon={Calendar} label="Ngày" onClick={datesPop.toggle} expanded={!!datesPop.anchor} />
-              <UpcomingButton label="Đính kèm" icon={Paperclip} />
-              <UpcomingButton label="Ảnh bìa" icon={ImageIcon} />
-            </SidebarGroup>
-
-            <SidebarGroup title="Thao tác">
-              <SidebarButton icon={ArrowRight} label="Di chuyển" onClick={move.toggle} expanded={!!move.anchor} />
-              <SidebarButton icon={Copy} label="Sao chép" onClick={copy.toggle} expanded={!!copy.anchor} />
-              <button type="button" onClick={onArchive} className={SIDEBAR_BUTTON}>
-                <Archive size={18} className="text-ink-subtle" />
-                Lưu trữ
-              </button>
-              <button
-                type="button"
-                onClick={remove.toggle}
-                aria-haspopup="dialog"
-                aria-expanded={!!remove.anchor}
-                className="flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-sm font-medium text-danger transition-colors hover:bg-danger-soft/40 aria-expanded:bg-danger-soft/40"
-              >
-                <Trash2 size={18} />
-                Xoá thẻ
-              </button>
-            </SidebarGroup>
-          </aside>
-        )}
-      </div>
+      <Popover anchor={coverPop.anchor} onClose={coverPop.close} label="Ảnh bìa">
+        <CoverPopoverContent
+          card={card}
+          actions={actions}
+          onUpload={(files) => void uploadFiles(files, { asCover: true })}
+          onClose={coverPop.close}
+        />
+      </Popover>
 
       <Popover anchor={membersPop.anchor} onClose={membersPop.close} label="Thành viên của thẻ">
         <MembersPopoverContent board={board} card={card} actions={actions} onClose={membersPop.close} />
@@ -727,16 +757,6 @@ function SidebarButton({
     <button type="button" onClick={onClick} aria-haspopup="dialog" aria-expanded={expanded} className={SIDEBAR_BUTTON}>
       <Icon size={18} className="text-ink-subtle" />
       {label}
-    </button>
-  );
-}
-
-function UpcomingButton({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
-  return (
-    <button type="button" disabled title={`${label} — Sắp có`} className={SIDEBAR_BUTTON}>
-      <Icon size={18} />
-      <span className="flex-1">{label}</span>
-      <ComingSoonBadge />
     </button>
   );
 }

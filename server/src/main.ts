@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
 import { requestContextMiddleware } from "./realtime/request-context";
 import { SocketAdapter } from "./realtime/socket.adapter";
+import { LOCAL_UPLOAD_DIR, LOCAL_UPLOAD_PREFIX, StorageService } from "./storage/storage.service";
 import { setupSwagger, SWAGGER_PATH } from "./swagger";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 
@@ -31,6 +32,18 @@ async function bootstrap() {
     }),
   );
   app.enableShutdownHooks();
+
+  // Chưa cấu hình Cloudinary (dev): phục vụ tệp đính kèm từ ổ đĩa.
+  // Tệp không phải ảnh luôn tải xuống (không mở trên trình duyệt) — tránh tệp .html chạy script trên domain API.
+  if (!app.get(StorageService).usesCloudinary) {
+    app.useStaticAssets(LOCAL_UPLOAD_DIR, {
+      prefix: LOCAL_UPLOAD_PREFIX,
+      setHeaders: (res, path) => {
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        if (!/\.(jpe?g|png|gif|webp)$/i.test(path)) res.setHeader("Content-Disposition", "attachment");
+      },
+    });
+  }
 
   const swaggerEnabled =
     config.get(

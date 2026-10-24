@@ -94,15 +94,18 @@ export function Modal({
   );
 }
 
-/** Nút X ở góc phải trên của modal. */
-export function ModalCloseButton({ onClick }: { onClick: () => void }) {
+/** Nút X ở góc phải trên của modal. `onCover`: nằm trên ảnh bìa → có nền trắng để luôn nhìn rõ. */
+export function ModalCloseButton({ onClick, onCover = false }: { onClick: () => void; onCover?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label="Đóng"
       title="Đóng (Esc)"
-      className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full text-ink-subtle transition-colors hover:bg-surface-mid hover:text-ink"
+      className={cn(
+        'absolute top-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full text-ink-subtle transition-colors hover:text-ink',
+        onCover ? 'bg-white/85 shadow-sm hover:bg-white' : 'hover:bg-surface-mid',
+      )}
     >
       <X size={20} />
     </button>
