@@ -9,6 +9,7 @@ import { useAuth } from "@/components/auth-provider";
 import { Alert, Field, PasswordField, SubmitButton } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { authHref } from "@/lib/auth";
+import { isSafeNextPath } from "@/lib/safe-path";
 
 type FormValues = {
   name: string;
@@ -77,13 +78,17 @@ function RegisterForm() {
     setPending(true);
     setError(null);
     try {
-      await register({
+      const verificationRequired = await register({
         name: values.name,
         email: values.email,
         password: values.password,
+        ...(isSafeNextPath(next) && { next }),
       });
+      // Server có gửi email → nhắc mở email xác minh; không → đăng nhập luôn được
       router.replace(
-        authHref("/login", next, { registered: "1", email: values.email }),
+        verificationRequired
+          ? authHref("/check-email", next, { email: values.email })
+          : authHref("/login", next, { registered: "1", email: values.email }),
       );
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {

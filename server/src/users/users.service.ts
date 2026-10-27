@@ -13,13 +13,14 @@ const publicUserSelect = {
   email: true,
   name: true,
   avatarUrl: true,
+  emailVerifiedAt: true,
   createdAt: true,
 } satisfies Prisma.UserSelect;
 
 export type PublicUser = Prisma.UserGetPayload<{ select: typeof publicUserSelect }>;
 
-export function toPublicUser({ id, email, name, avatarUrl, createdAt }: User): PublicUser {
-  return { id, email, name, avatarUrl, createdAt };
+export function toPublicUser({ id, email, name, avatarUrl, emailVerifiedAt, createdAt }: User): PublicUser {
+  return { id, email, name, avatarUrl, emailVerifiedAt, createdAt };
 }
 
 @Injectable()

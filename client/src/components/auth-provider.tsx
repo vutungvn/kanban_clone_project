@@ -10,7 +10,8 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   login: (input: LoginInput) => Promise<void>;
-  register: (input: RegisterInput) => Promise<void>;
+  /** Trả về true nếu phải xác minh email trước khi đăng nhập */
+  register: (input: RegisterInput) => Promise<boolean>;
   logout: () => Promise<void>;
   /** Thông tin tài khoản vừa đổi (tên, ảnh đại diện) */
   updateUser: (user: User) => void;
@@ -40,7 +41,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Đăng ký không tạo phiên đăng nhập → không set user
   const register = useCallback(async (input: RegisterInput) => {
-    await authApi.register(input);
+    const { verificationRequired } = await authApi.register(input);
+    return verificationRequired;
   }, []);
 
   const logout = useCallback(async () => {

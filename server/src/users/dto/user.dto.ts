@@ -15,6 +15,9 @@ export class UserDto implements PublicUser {
   @ApiProperty({ type: String, nullable: true, format: 'uri', example: null })
   avatarUrl: string | null;
 
+  @ApiProperty({ type: String, format: 'date-time', nullable: true, example: '2026-01-15T08:35:00.000Z', description: 'Lúc xác minh email; null = chưa xác minh' })
+  emailVerifiedAt: Date | null;
+
   @ApiProperty({ type: String, format: 'date-time', example: '2026-01-15T08:30:00.000Z' })
   createdAt: Date;
 }

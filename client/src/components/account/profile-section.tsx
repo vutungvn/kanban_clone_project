@@ -168,7 +168,7 @@ function NameCard({ user, onChange }: { user: User; onChange: (user: User) => vo
           value={user.email}
           readOnly
           disabled
-          hint="Email dùng để đăng nhập, hiện chưa đổi được."
+          hint={`${user.emailVerifiedAt ? 'Đã xác minh' : 'Chưa xác minh'} · dùng để đăng nhập, hiện chưa đổi được.`}
         />
         <div>
           <button type="submit" disabled={pending || unchanged} className={PRIMARY_BUTTON}>

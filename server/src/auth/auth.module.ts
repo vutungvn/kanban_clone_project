@@ -5,6 +5,7 @@ import { UsersModule } from '../users/users.module';
 import { AuthCookiesService } from './auth-cookies.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { EmailFlowsService } from './email-flows.service';
 import { AccountController } from './account.controller';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { SessionRevocations } from './session-revocations';
@@ -21,7 +22,7 @@ import { SessionRevocations } from './session-revocations';
     }),
   ],
   controllers: [AuthController, AccountController],
-  providers: [AuthService, AuthCookiesService, JwtAuthGuard, SessionRevocations],
+  providers: [AuthService, EmailFlowsService, AuthCookiesService, JwtAuthGuard, SessionRevocations],
   // Export để các module sau (boards, socket gateway) dùng lại guard
   exports: [JwtModule, JwtAuthGuard, SessionRevocations],
 })

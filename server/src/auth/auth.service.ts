@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -8,6 +9,7 @@ import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { compare, hash, hashSync } from "bcryptjs";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { MailService } from "../mail/mail.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeService } from "../realtime/realtime.service";
 import { PublicUser, toPublicUser, UsersService } from "../users/users.service";
@@ -22,6 +24,8 @@ export const CANNOT_REVOKE_CURRENT =
   "Đây là phiên hiện tại — hãy dùng Đăng xuất";
 export const WRONG_PASSWORD = "Mật khẩu hiện tại không đúng";
 export const SAME_PASSWORD = "Mật khẩu mới phải khác mật khẩu hiện tại";
+export const EMAIL_NOT_VERIFIED =
+  "Email chưa được xác minh — hãy bấm liên kết trong email chúng tôi đã gửi";
 
 const BCRYPT_ROUNDS = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -55,6 +59,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly revocations: SessionRevocations,
     private readonly realtime: RealtimeService,
+    private readonly mail: MailService,
     config: ConfigService,
   ) {
     this.refreshTtlMs =
@@ -80,6 +85,10 @@ export class AuthService {
     if (!user || !valid) {
       throw new UnauthorizedException("Email hoặc mật khẩu không đúng");
     }
+    // Kiểm tra sau mật khẩu: không đúng mật khẩu thì không biết được email đã xác minh hay chưa.
+    // Chưa cấu hình SMTP thì không bắt xác minh (không gửi được mail).
+    if (!user.emailVerifiedAt && this.mail.enabled)
+      throw new ForbiddenException(EMAIL_NOT_VERIFIED);
     const tokens = await this.createSession(user.id, meta);
     return { user: toPublicUser(user), tokens };
   }
@@ -179,6 +188,17 @@ export class AuthService {
       data: { passwordHash },
     });
     return this.revokeOtherSessions(userId, currentSessionId);
+  }
+
+  /** Đăng xuất mọi thiết bị (vd vừa đặt lại mật khẩu qua email). */
+  async revokeAllSessions(userId: string) {
+    const sessions = await this.prisma.session.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    const ids = sessions.map((s) => s.id);
+    await this.prisma.session.deleteMany({ where: { id: { in: ids } } });
+    await this.revoke(userId, ids);
   }
 
   /** Access token của các phiên này hết hiệu lực ngay; tab đang mở của chúng tự đăng xuất. */
