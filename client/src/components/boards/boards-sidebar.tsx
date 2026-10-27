@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Activity,
   Award,
   ChevronDown,
   House,
@@ -13,18 +14,20 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { givenName } from '@/components/avatar';
 import { ComingSoonBadge } from '@/components/ui';
 import { cn } from '@/lib/cn';
 
-type NavItem = { icon: LucideIcon; label: string; href?: string; active?: boolean };
+type NavItem = { icon: LucideIcon; label: string; href?: string };
 
-// Mục không có href = chưa có trang → hiển thị "Sắp có"
+// Mục không có href = chưa có trang → hiển thị "Sắp có". Mục đang mở sáng theo đường dẫn hiện tại.
 const MAIN_NAV: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Bảng', href: '/boards', active: true },
+  { icon: LayoutDashboard, label: 'Bảng', href: '/boards' },
+  { icon: House, label: 'Trang chủ', href: '/home' },
+  { icon: Activity, label: 'Hoạt động', href: '/activity' },
   { icon: LayoutTemplate, label: 'Mẫu' },
-  { icon: House, label: 'Trang chủ' },
 ];
 
 const WORKSPACE_NAV: NavItem[] = [
@@ -100,7 +103,10 @@ export function BoardsSidebar({ userName }: { userName: string }) {
 }
 
 function SidebarLink({ item, size }: { item: NavItem; size: 'lg' | 'sm' }) {
-  const { icon: Icon, label, href, active } = item;
+  const { icon: Icon, label, href } = item;
+  // Mục phụ trong không gian làm việc không sáng (trùng đường dẫn /boards với mục "Bảng")
+  const pathname = usePathname();
+  const active = size === 'lg' && pathname === href;
   const base = cn(
     'flex items-center rounded transition-colors',
     size === 'lg' ? 'gap-2 px-3 py-2 text-sm' : 'gap-2 px-2 py-1.5 text-xs',
