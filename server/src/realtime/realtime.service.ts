@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Namespace } from 'socket.io';
+import { PrismaService } from '../prisma/prisma.service';
 import { currentSocketId } from './request-context';
 
 /** Phòng socket của 1 bảng — mọi người đang mở bảng đó. */
@@ -30,6 +31,8 @@ export interface BoardChangedEvent {
 export class RealtimeService {
   private server?: Namespace;
 
+  constructor(private readonly prisma: PrismaService) {}
+
   /** Gateway gọi khi khởi tạo xong namespace. */
   attach(server: Namespace) {
     this.server = server;
@@ -58,6 +61,16 @@ export class RealtimeService {
     const socketId = exceptOrigin ? currentSocketId() : undefined;
     const room = this.server.to(userRoom(userId));
     (socketId ? room.except(socketId) : room).emit(event, payload);
+  }
+
+  /**
+   * Bảng có hoạt động mới → báo cho mọi thành viên (qua phòng riêng, không cần đang mở bảng) để trang Hoạt động /
+   * Trang chủ tải phần mới. Gửi cả tab vừa thao tác: tab đó có thể đang ở bảng, còn trang Hoạt động mở ở tab khác.
+   */
+  async activityAdded(boardIds: string[]) {
+    if (!this.server || !boardIds.length) return;
+    const members = await this.prisma.boardMember.findMany({ where: { boardId: { in: boardIds } }, select: { boardId: true, userId: true } });
+    for (const m of members) this.server.to(userRoom(m.userId)).emit('activity:new', { boardId: m.boardId });
   }
 
   /** Các phiên bị đăng xuất từ xa: báo cho tab của phiên đó (tự đăng xuất) rồi ngắt kết nối. */

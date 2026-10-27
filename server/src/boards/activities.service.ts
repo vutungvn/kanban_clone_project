@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { ActivityType, BoardRole, NotificationType, Prisma } from '@prisma/client';
 import { excerpt, NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { markActivity } from '../realtime/request-context';
 import { RealtimeService } from '../realtime/realtime.service';
 import { BoardAccessService } from './board-access.service';
 import { CARD_NOT_FOUND } from './boards.constants';
@@ -63,10 +64,12 @@ export class ActivitiesService {
   }
 
   log(db: Db, input: ActivityInput) {
+    markActivity(input.boardId);
     return db.activity.create({ data: input });
   }
 
   logMany(db: Db, inputs: ActivityInput[]) {
+    for (const input of inputs) markActivity(input.boardId);
     return db.activity.createMany({ data: inputs });
   }
 
@@ -93,6 +96,7 @@ export class ActivitiesService {
       data: { boardId, cardId, userId, type: ActivityType.COMMENT, text },
       include: activityInclude,
     });
+    markActivity(boardId);
     this.realtime.boardChanged(boardId, cardId);
     await this.notifyComment(cardId, userId, text);
     return toActivity(activity);
