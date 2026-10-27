@@ -17,6 +17,8 @@ import { BoardInvitesController, InvitesController } from './invites.controller'
 import { InvitesService } from './invites.service';
 import { LabelsController } from './labels.controller';
 import { LabelsService } from './labels.service';
+import { MeController } from './me.controller';
+import { MeService } from './me.service';
 import { ListsController } from './lists.controller';
 import { ListsService } from './lists.service';
 import { MembersController } from './members.controller';
@@ -36,6 +38,7 @@ import { MembersService } from './members.service';
     ChecklistsController,
     AttachmentsController,
     ActivitiesController,
+    MeController,
   ],
   providers: [
     BoardAccessService,
@@ -48,6 +51,7 @@ import { MembersService } from './members.service';
     ChecklistsService,
     AttachmentsService,
     ActivitiesService,
+    MeService,
     BoardsGateway,
   ],
   // Export để module khác dùng lại kiểm tra quyền trong bảng

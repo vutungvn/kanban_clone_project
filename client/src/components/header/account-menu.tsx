@@ -5,13 +5,13 @@ import Link from 'next/link';
 import { useAuth } from '@/components/auth-provider';
 import { Avatar } from '@/components/avatar';
 import { Popover, usePopoverAnchor } from '@/components/popover';
-import { ComingSoonBadge } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { THEME_OPTIONS, useTheme, type ThemePreference } from '@/lib/theme';
 
 const LINKS: { icon: LucideIcon; label: string; href: string }[] = [
   { icon: CircleUser, label: 'Hồ sơ và hiển thị', href: '/account?tab=profile' },
   { icon: ShieldCheck, label: 'Bảo mật và đăng nhập', href: '/account?tab=security' },
+  { icon: History, label: 'Hoạt động', href: '/activity?scope=mine' },
 ];
 
 const THEME_ICONS: Record<ThemePreference, LucideIcon> = { light: Sun, dark: Moon, system: Monitor };
@@ -67,13 +67,6 @@ export function AccountMenu() {
               </Link>
             </li>
           ))}
-          <li>
-            <button type="button" disabled className="flex w-full cursor-not-allowed items-center gap-3 rounded px-2 py-2 text-left text-sm text-ink/70">
-              <History size={18} className="text-ink-subtle" />
-              <span className="flex-1">Hoạt động</span>
-              <ComingSoonBadge />
-            </button>
-          </li>
         </ul>
 
         <div className="-mx-3 border-t border-surface-high px-3 py-2.5">

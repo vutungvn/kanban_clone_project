@@ -1,6 +1,6 @@
 'use client';
 
-import { Camera, LoaderCircle, Mail, Trash2, UserRound } from 'lucide-react';
+import { Camera, Lock, LoaderCircle, Mail, Trash2, UserRound } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { Avatar } from '@/components/avatar';
@@ -168,6 +168,7 @@ function NameCard({ user, onChange }: { user: User; onChange: (user: User) => vo
           value={user.email}
           readOnly
           disabled
+          trailing={<Lock size={16} className="pointer-events-none text-ink-subtle" aria-label="Không sửa được" />}
           hint={`${user.emailVerifiedAt ? 'Đã xác minh' : 'Chưa xác minh'} · dùng để đăng nhập, hiện chưa đổi được.`}
         />
         <div>
