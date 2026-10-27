@@ -2,7 +2,8 @@
 
 import { CheckSquare, ChevronDown, Clock, ListTodo, MessageSquare, Paperclip, SquareCheck } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useActivityEvents } from '@/components/activity/activity-feed';
 import { LabelChip } from '@/components/board/card-ui';
 import { toast } from '@/components/toast';
 import { errorMessage } from '@/lib/api';
@@ -42,6 +43,14 @@ function useMyCards() {
 
   useEffect(reload, [reload]);
   useRefreshOnReturn(reload);
+
+  // Realtime: bảng mình tham gia có hoạt động mới (được giao thẻ, đổi hạn chót, chuyển danh sách...) → tải lại
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useActivityEvents(() => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(reload, 500);
+  });
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   /** Tick hoàn thành ngay trên trang chủ: đổi giao diện trước, lỗi thì trả lại. */
   const setDone = useCallback(async (card: MyCard, dueComplete: boolean) => {

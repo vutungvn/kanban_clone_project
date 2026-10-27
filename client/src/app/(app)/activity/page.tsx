@@ -88,7 +88,7 @@ function ActivityView() {
             </select>
           </div>
 
-          {feed.items && feed.items.length > 0 && <ActivityFeedList items={feed.items} groupByDay />}
+          {feed.items && feed.items.length > 0 && <ActivityFeedList items={feed.items} freshIds={feed.freshIds} groupByDay />}
           <FeedStatus
             items={feed.items}
             error={feed.error}

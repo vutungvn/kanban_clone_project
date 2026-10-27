@@ -42,7 +42,7 @@ export default function HomePage() {
 }
 
 function RecentActivity() {
-  const { items, error } = useFeed('all', null, 5);
+  const { items, error, freshIds } = useFeed('all', null, { pageSize: 5, latestOnly: true });
   return (
     <section aria-labelledby="recent-activity-title" className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
@@ -54,7 +54,7 @@ function RecentActivity() {
           Xem tất cả
         </Link>
       </div>
-      {items && items.length > 0 && <ActivityFeedList items={items} />}
+      {items && items.length > 0 && <ActivityFeedList items={items} freshIds={freshIds} />}
       <FeedStatus items={items} error={error} empty="Chưa có hoạt động nào trên các bảng của bạn." />
     </section>
   );

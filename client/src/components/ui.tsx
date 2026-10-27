@@ -69,7 +69,7 @@ export function Field({
           aria-invalid={error ? true : undefined}
           aria-describedby={error || hint ? messageId : undefined}
           className={cn(
-            'h-10 w-full rounded bg-card text-sm text-ink transition-shadow outline-none placeholder:text-outline',
+            'h-10 w-full rounded bg-card text-sm text-ink transition-shadow outline-none placeholder:text-outline disabled:cursor-not-allowed disabled:bg-black/[0.07] disabled:text-ink-subtle',
             Icon ? 'pl-9' : 'pl-3',
             trailingContent ? 'pr-10' : 'pr-3',
             error

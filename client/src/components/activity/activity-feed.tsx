@@ -10,19 +10,43 @@ import { backgroundClass } from '@/lib/board-backgrounds';
 import { addDays, formatDay, formatFull, formatRelative, toDateInput } from '@/lib/card-dates';
 import { cn } from '@/lib/cn';
 import { meApi, type FeedActivity, type FeedScope } from '@/lib/me-api';
+import { getSocket } from '@/lib/realtime';
 import { useRefreshOnReturn } from '@/lib/use-refresh-on-return';
 
+/** Gom các sự kiện dồn dập (vd kéo thả liên tục) thành 1 lần tải */
+const REALTIME_DEBOUNCE_MS = 300;
+/** Dòng mới đến qua realtime được tô sáng trong ngần này */
+const HIGHLIGHT_MS = 2500;
+
+/** Sự kiện realtime: 1 bảng mình tham gia vừa có hoạt động mới (server gửi sau khi đã lưu). */
+export function useActivityEvents(onActivity: (boardId: string) => void) {
+  const latest = useRef(onActivity);
+  latest.current = onActivity;
+  useEffect(() => {
+    const socket = getSocket();
+    const handler = (event: { boardId: string }) => latest.current(event.boardId);
+    socket.on('activity:new', handler);
+    return () => {
+      socket.off('activity:new', handler);
+    };
+  }, []);
+}
+
 /**
- * Tải hoạt động các bảng tôi tham gia, có "Tải thêm". Đổi scope / bảng thì tải lại từ đầu;
- * quay lại tab cũng tải lại trang đầu (không realtime).
+ * Tải hoạt động các bảng tôi tham gia, có "Tải thêm". Đổi scope / bảng thì tải lại từ đầu.
+ * Realtime: có hoạt động mới → chèn lên đầu (giữ các trang đã "Tải thêm"), tô sáng vài giây.
+ * `latestOnly`: chỉ giữ `pageSize` dòng mới nhất (Trang chủ).
  */
-export function useFeed(scope: FeedScope, boardId: string | null, pageSize = 20) {
+export function useFeed(scope: FeedScope, boardId: string | null, { pageSize = 20, latestOnly = false } = {}) {
   const [items, setItems] = useState<FeedActivity[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [freshIds, setFreshIds] = useState<ReadonlySet<string>>(new Set());
   // Bỏ kết quả của lần tải cũ khi người dùng đã đổi bộ lọc
   const seq = useRef(0);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
 
   const reload = useCallback(() => {
     const id = ++seq.current;
@@ -43,6 +67,43 @@ export function useFeed(scope: FeedScope, boardId: string | null, pageSize = 20)
   }, [reload]);
   useRefreshOnReturn(reload);
 
+  /** Tải trang đầu rồi chèn những dòng chưa có lên trên cùng. */
+  const fetchNewest = useCallback(async () => {
+    const id = seq.current;
+    try {
+      const page = await meApi.activities({ scope, boardId, limit: pageSize });
+      const current = itemsRef.current;
+      if (id !== seq.current || !current) return;
+      const known = new Set(current.map((a) => a.id));
+      const newest = current[0]?.createdAt ?? '';
+      const fresh = page.activities.filter((a) => !known.has(a.id) && a.createdAt >= newest);
+      if (!fresh.length) return;
+      if (!current.length) setNextCursor(page.nextCursor);
+      setItems((list) => {
+        const merged = [...fresh, ...(list ?? [])];
+        return latestOnly ? merged.slice(0, pageSize) : merged;
+      });
+      setFreshIds(new Set(fresh.map((a) => a.id)));
+    } catch {
+      // Lỗi mạng tạm thời — lần sau (sự kiện tiếp / quay lại tab) sẽ tải lại
+    }
+  }, [scope, boardId, pageSize, latestOnly]);
+
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useActivityEvents((eventBoardId) => {
+    if (boardId && eventBoardId !== boardId) return;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => void fetchNewest(), REALTIME_DEBOUNCE_MS);
+  });
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  // Hết thời gian tô sáng
+  useEffect(() => {
+    if (!freshIds.size) return;
+    const t = setTimeout(() => setFreshIds(new Set()), HIGHLIGHT_MS);
+    return () => clearTimeout(t);
+  }, [freshIds]);
+
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
     const id = seq.current;
@@ -59,7 +120,7 @@ export function useFeed(scope: FeedScope, boardId: string | null, pageSize = 20)
     }
   }, [scope, boardId, pageSize, nextCursor, loadingMore]);
 
-  return { items, error, hasMore: !!nextCursor, loadingMore, loadMore };
+  return { items, error, hasMore: !!nextCursor, loadingMore, loadMore, freshIds };
 }
 
 /** "Hôm nay" / "Hôm qua" / "25 thg 10" */
@@ -71,12 +132,21 @@ function dayLabel(iso: string) {
 }
 
 /** Danh sách hoạt động; `groupByDay` gom theo ngày (trang Hoạt động), không thì liền một mạch (Trang chủ). */
-export function ActivityFeedList({ items, groupByDay = false }: { items: FeedActivity[]; groupByDay?: boolean }) {
+export function ActivityFeedList({
+  items,
+  groupByDay = false,
+  freshIds,
+}: {
+  items: FeedActivity[];
+  groupByDay?: boolean;
+  /** Dòng vừa đến qua realtime → tô sáng */
+  freshIds?: ReadonlySet<string>;
+}) {
   if (!groupByDay) {
     return (
-      <ul className="flex flex-col gap-4">
+      <ul className="flex flex-col gap-2">
         {items.map((a) => (
-          <FeedItem key={a.id} activity={a} />
+          <FeedItem key={a.id} activity={a} fresh={freshIds?.has(a.id)} />
         ))}
       </ul>
     );
@@ -92,9 +162,9 @@ export function ActivityFeedList({ items, groupByDay = false }: { items: FeedAct
       {days.map((d) => (
         <section key={d.label} aria-label={d.label}>
           <h3 className="mb-3 text-xs font-semibold tracking-wide text-ink-subtle uppercase">{d.label}</h3>
-          <ul className="flex flex-col gap-4">
+          <ul className="flex flex-col gap-2">
             {d.items.map((a) => (
-              <FeedItem key={a.id} activity={a} />
+              <FeedItem key={a.id} activity={a} fresh={freshIds?.has(a.id)} />
             ))}
           </ul>
         </section>
@@ -103,11 +173,14 @@ export function ActivityFeedList({ items, groupByDay = false }: { items: FeedAct
   );
 }
 
-function FeedItem({ activity: a }: { activity: FeedActivity }) {
+function FeedItem({ activity: a, fresh = false }: { activity: FeedActivity; fresh?: boolean }) {
   const href = `/b/${a.board.id}?card=${encodeURIComponent(a.card.id)}`;
   const name = a.user?.name ?? 'Người dùng đã bị xoá';
   return (
-    <li className="flex items-start gap-3">
+    <li
+      data-fresh={fresh || undefined}
+      className={cn('-mx-2 flex items-start gap-3 rounded-lg px-2 py-1 transition-colors duration-1000', fresh && 'bg-brand/10')}
+    >
       {a.user ? (
         <Avatar name={a.user.name} seed={a.user.id} src={a.user.avatarUrl} size={32} className="shrink-0" />
       ) : (
