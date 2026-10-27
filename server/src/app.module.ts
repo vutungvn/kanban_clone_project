@@ -5,6 +5,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AuthModule } from './auth/auth.module';
 import { BoardsModule } from './boards/boards.module';
+import { MailModule } from './mail/mail.module';
 import { HttpThrottlerGuard } from './common/http-throttler.guard';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -19,6 +20,7 @@ import { UsersModule } from './users/users.module';
     PrismaModule,
     RealtimeModule,
     StorageModule,
+    MailModule,
     UsersModule,
     AuthModule,
     BoardsModule,

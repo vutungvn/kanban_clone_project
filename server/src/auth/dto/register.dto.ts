@@ -1,6 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { NextPath } from './next-path';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
@@ -32,4 +33,10 @@ export class RegisterDto {
   // bcrypt chỉ dùng 72 byte đầu tiên
   @MaxLength(72, { message: 'Mật khẩu tối đa 72 ký tự' })
   password: string;
+
+  @ApiPropertyOptional({ example: '/invite/abc123', description: 'Trang mở tiếp sau khi xác minh email + đăng nhập (vd liên kết mời)' })
+  @IsOptional()
+  @IsString()
+  @NextPath()
+  next?: string;
 }

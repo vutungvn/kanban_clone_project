@@ -6,6 +6,8 @@ export interface User {
   email: string;
   name: string;
   avatarUrl: string | null;
+  /** null = chưa xác minh email */
+  emailVerifiedAt: string | null;
   createdAt: string;
 }
 
@@ -16,6 +18,8 @@ export interface LoginInput {
 
 export interface RegisterInput extends LoginInput {
   name: string;
+  /** Trang mở tiếp sau khi xác minh email (vd liên kết mời) — nằm trong link của email */
+  next?: string;
 }
 
 type UserResponse = { user: User };
@@ -85,13 +89,30 @@ export function describeUserAgent(ua: string | null) {
 }
 
 export const authApi = {
+  /** `verificationRequired`: phải bấm link trong email trước khi đăng nhập */
   register: (input: RegisterInput) =>
-    api<UserResponse>('/auth/register', { method: 'POST', body: JSON.stringify(input) }),
+    api<UserResponse & { verificationRequired: boolean }>('/auth/register', { method: 'POST', body: JSON.stringify(input) }),
   login: (input: LoginInput) =>
     api<UserResponse>('/auth/login', { method: 'POST', body: JSON.stringify(input) }),
   logout: () => api<void>('/auth/logout', { method: 'POST' }),
   me: () => api<UserResponse>('/auth/me'),
+  verifyEmail: (token: string) =>
+    api<{ email: string }>('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) }),
+  /** Luôn thành công (không cho biết email có tồn tại) */
+  resendVerification: (email: string, next?: string | null) =>
+    api<void>('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email, ...(next && { next }) }) }),
+  /** Luôn thành công (không cho biết email có tồn tại) */
+  forgotPassword: (email: string) =>
+    api<void>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  /** Lỗi 400 nếu link đặt lại mật khẩu sai / đã dùng / hết hạn / đã có link mới hơn */
+  checkResetToken: (token: string) =>
+    api<void>('/auth/reset-password/check', { method: 'POST', body: JSON.stringify({ token }) }),
+  resetPassword: (token: string, password: string) =>
+    api<void>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
 };
+
+/** Server trả 403 khi đăng nhập đúng mật khẩu nhưng email chưa xác minh */
+export const EMAIL_NOT_VERIFIED_STATUS = 403;
 
 /** Lấy ?next= từ URL, chỉ chấp nhận đường dẫn nội bộ. */
 export function getSafeNextPath(fallback = '/boards') {
@@ -100,7 +121,7 @@ export function getSafeNextPath(fallback = '/boards') {
 }
 
 /** Link giữa đăng nhập ↔ đăng ký, giữ lại `next` (vd đang mở liên kết mời). */
-export function authHref(path: '/login' | '/register', next: string | null, params: Record<string, string> = {}) {
+export function authHref(path: string, next: string | null, params: Record<string, string> = {}) {
   const query = new URLSearchParams(params);
   if (isSafeNextPath(next)) query.set('next', next);
   const qs = query.toString();

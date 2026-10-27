@@ -16,6 +16,7 @@ import {
   ApiConflictResponse,
   ApiCookieAuth,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
@@ -29,10 +30,23 @@ import { ErrorResponseDto } from "../common/dto/error-response.dto";
 import { UserResponseDto } from "../users/dto/user.dto";
 import { UsersService } from "../users/users.service";
 import { AuthCookiesService } from "./auth-cookies.service";
-import { AuthService } from "./auth.service";
+import { AuthService, EMAIL_NOT_VERIFIED } from "./auth.service";
 import { ACCESS_COOKIE, REFRESH_COOKIE } from "./auth.types";
 import type { AuthUser, RequestMeta } from "./auth.types";
 import { CurrentUser } from "./decorators/current-user.decorator";
+import {
+  EmailDto,
+  RegisterResponseDto,
+  ResendVerificationDto,
+  ResetPasswordDto,
+  TokenDto,
+  VerifyEmailResponseDto,
+} from "./dto/email.dto";
+import {
+  EmailFlowsService,
+  INVALID_RESET_LINK,
+  INVALID_VERIFY_LINK,
+} from "./email-flows.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
@@ -74,15 +88,17 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly cookies: AuthCookiesService,
     private readonly users: UsersService,
+    private readonly emails: EmailFlowsService,
   ) {}
 
   @ApiOperation({
     summary: "Đăng ký tài khoản",
     description:
-      "Chỉ tạo tài khoản, **không** tự đăng nhập — gọi `POST /auth/login` sau khi đăng ký.",
+      "Chỉ tạo tài khoản, **không** tự đăng nhập. Server đã cấu hình SMTP → gửi email xác minh, " +
+      "`verificationRequired: true` và phải bấm link trong email trước khi đăng nhập. Chưa cấu hình → xác minh luôn.",
   })
   @ApiCreatedResponse({
-    type: UserResponseDto,
+    type: RegisterResponseDto,
     description: "Tạo tài khoản thành công",
   })
   @ApiBadRequestResponse({
@@ -107,7 +123,95 @@ export class AuthController {
   @Post("register")
   async register(@Body() dto: RegisterDto) {
     const user = await this.auth.register(dto);
-    return { user };
+    const verificationRequired = await this.emails.afterRegister(
+      user,
+      dto.next,
+    );
+    return { user, verificationRequired };
+  }
+
+  @ApiOperation({
+    summary: "Xác minh email",
+    description:
+      "Gửi token trong link email (`/verify-email?token=...`). Link dùng 1 lần, hiệu lực 24 giờ; mở lại link đã dùng vẫn thành công.",
+  })
+  @ApiOkResponse({ type: VerifyEmailResponseDto })
+  @ApiBadRequestResponse({
+    type: ErrorResponseDto,
+    description: "Token sai, đã hết hạn",
+    example: { statusCode: 400, message: INVALID_VERIFY_LINK, error: "Bad Request" },
+  })
+  @HttpCode(HttpStatus.OK)
+  @Post("verify-email")
+  verifyEmail(@Body() dto: TokenDto) {
+    return this.emails.verifyEmail(dto.token);
+  }
+
+  @ApiOperation({
+    summary: "Gửi lại email xác minh",
+    description:
+      "Gửi link mới, link xác minh cũ hết hiệu lực. Luôn trả 204 (không cho biết email có tồn tại / đã xác minh chưa). " +
+      "Mỗi email tối đa 1 lần / phút.",
+  })
+  @ApiNoContentResponse({ description: "Đã nhận yêu cầu" })
+  @ApiTooManyRequestsResponse(TOO_MANY_REQUESTS)
+  @Throttle(STRICT_LIMIT)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post("resend-verification")
+  async resendVerification(@Body() dto: ResendVerificationDto) {
+    await this.emails.resendVerification(dto.email, dto.next);
+  }
+
+  @ApiOperation({
+    summary: "Quên mật khẩu",
+    description:
+      "Gửi link đặt lại mật khẩu (hiệu lực 1 giờ, link cũ hết hiệu lực) nếu email đã đăng ký. Luôn trả 204 (không lộ email nào tồn tại). " +
+      "Mỗi email tối đa 1 lần / phút.",
+  })
+  @ApiNoContentResponse({ description: "Đã nhận yêu cầu" })
+  @ApiTooManyRequestsResponse(TOO_MANY_REQUESTS)
+  @Throttle(STRICT_LIMIT)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post("forgot-password")
+  async forgotPassword(@Body() dto: EmailDto) {
+    await this.emails.forgotPassword(dto.email);
+  }
+
+  @ApiOperation({
+    summary: "Kiểm tra link đặt lại mật khẩu",
+    description:
+      "Gọi khi mở trang đặt lại mật khẩu: link sai / đã dùng / hết hạn / đã bị link mới thay thế → 400, không hiện form.",
+  })
+  @ApiNoContentResponse({ description: "Link còn dùng được" })
+  @ApiBadRequestResponse({
+    type: ErrorResponseDto,
+    description: "Link không dùng được",
+    example: { statusCode: 400, message: INVALID_RESET_LINK, error: "Bad Request" },
+  })
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post("reset-password/check")
+  async checkResetToken(@Body() dto: TokenDto) {
+    await this.emails.checkResetToken(dto.token);
+  }
+
+  @ApiOperation({
+    summary: "Đặt lại mật khẩu",
+    description:
+      "Dùng token trong link email. Link dùng 1 lần; đặt xong thì mọi thiết bị bị đăng xuất và email được xác minh luôn.",
+  })
+  @ApiNoContentResponse({ description: "Đã đặt mật khẩu mới" })
+  @ApiBadRequestResponse({
+    type: ErrorResponseDto,
+    description: "Token sai / hết hạn / đã dùng, hoặc mật khẩu không hợp lệ",
+    example: { statusCode: 400, message: INVALID_RESET_LINK, error: "Bad Request" },
+  })
+  @ApiTooManyRequestsResponse(TOO_MANY_REQUESTS)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Post("reset-password")
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.emails.resetPassword(dto.token, dto.password);
   }
 
   @ApiOperation({
@@ -136,6 +240,11 @@ export class AuthController {
       message: "Email hoặc mật khẩu không đúng",
       error: "Unauthorized",
     },
+  })
+  @ApiForbiddenResponse({
+    type: ErrorResponseDto,
+    description: "Đúng mật khẩu nhưng email chưa xác minh (chỉ khi server có SMTP)",
+    example: { statusCode: 403, message: EMAIL_NOT_VERIFIED, error: "Forbidden" },
   })
   @ApiTooManyRequestsResponse(TOO_MANY_REQUESTS)
   @Throttle(STRICT_LIMIT)

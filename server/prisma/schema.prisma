@@ -12,12 +12,15 @@ model User {
   email             String             @unique
   name              String
   passwordHash      String
+  // Đã bấm link xác minh trong email (null = chưa xác minh)
+  emailVerifiedAt   DateTime?
   avatarUrl         String?
   // Nơi lưu ảnh đại diện (storageKey, xem StorageService) — để xoá ảnh cũ khi đổi / gỡ
   avatarKey         String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   sessions          Session[]
+  emailTokens       EmailToken[]
   ownedBoards       Board[]
   memberships       BoardMember[]
   joinRequests      BoardJoinRequest[]
@@ -45,6 +48,26 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+enum EmailTokenType {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+// Link gửi qua email (xác minh email, đặt lại mật khẩu). Chỉ lưu hash của token; dùng 1 lần, có hạn.
+model EmailToken {
+  id        String         @id @default(cuid())
+  userId    String
+  type      EmailTokenType
+  tokenHash String         @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, createdAt])
+  @@map("email_tokens")
 }
 
 model Board {
