@@ -52,8 +52,9 @@ export class StorageService {
     this.localBaseUrl = `http://localhost:${config.get('PORT', 4000)}${LOCAL_UPLOAD_PREFIX}`;
   }
 
-  async upload(file: { buffer: Buffer; mimeType: string; name: string }): Promise<StoredFile> {
-    if (this.usesCloudinary) return this.uploadToCloudinary(file);
+  /** `subfolder`: thư mục con trên Cloudinary (vd "avatars"). */
+  async upload(file: { buffer: Buffer; mimeType: string; name: string }, subfolder?: string): Promise<StoredFile> {
+    if (this.usesCloudinary) return this.uploadToCloudinary(file, subfolder ? `${this.folder}/${subfolder}` : this.folder);
     if (process.env.NODE_ENV === 'production') throw new ServiceUnavailableException(STORAGE_NOT_CONFIGURED);
     return this.saveLocally(file);
   }
@@ -82,12 +83,12 @@ export class StorageService {
     }
   }
 
-  private uploadToCloudinary(file: { buffer: Buffer; mimeType: string; name: string }) {
+  private uploadToCloudinary(file: { buffer: Buffer; mimeType: string; name: string }, folder: string) {
     const resourceType = isImageType(file.mimeType) ? 'image' : 'raw';
     return new Promise<StoredFile>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
-          folder: this.folder,
+          folder,
           resource_type: resourceType,
           // Tệp thường: public_id phải kèm đuôi thì tải về mới đúng định dạng
           ...(resourceType === 'raw' && { public_id: `${randomUUID()}${safeExtension(file.name)}` }),

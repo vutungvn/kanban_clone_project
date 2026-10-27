@@ -12,7 +12,7 @@ import { CardFace, describeCard, useResolvedCard } from './card-badges';
 import { useOpenCard } from './card-detail-modal';
 import type { DragData } from './dnd';
 
-const CARD_CLASS = 'relative rounded-lg bg-white p-3 text-sm text-ink shadow-sm outline-none';
+const CARD_CLASS = 'relative rounded-lg bg-card p-3 text-sm text-ink shadow-sm outline-none';
 
 /** `canDrag`: tắt kéo thả riêng (vd đang lọc thẻ — vị trí hiển thị không khớp vị trí thật). */
 export function CardItem({
@@ -132,7 +132,7 @@ function CardQuickEdit({ card, actions, onDone }: { card: Card; actions: BoardAc
           }
         }}
         aria-label="Tiêu đề thẻ"
-        className="w-full resize-none rounded-lg bg-white p-3 text-sm text-ink shadow-sm ring-2 ring-brand outline-none"
+        className="w-full resize-none rounded-lg bg-card p-3 text-sm text-ink shadow-sm ring-2 ring-brand outline-none"
       />
       <div className="flex items-center gap-1.5">
         <button

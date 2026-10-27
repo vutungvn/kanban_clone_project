@@ -7,7 +7,7 @@ import { useBoards } from '@/lib/boards-store';
 
 /** Ô chọn trong các popover di chuyển / sao chép */
 export const SELECT_CLASS =
-  'h-9 w-full rounded bg-white px-2 text-sm text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)] disabled:bg-surface-low disabled:text-ink-subtle';
+  'h-9 w-full rounded bg-card px-2 text-sm text-ink shadow-[0_0_0_1px_var(--color-hairline)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)] disabled:bg-surface-low disabled:text-ink-subtle';
 
 export interface TargetBoard {
   id: string;

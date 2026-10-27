@@ -104,14 +104,14 @@ export function HeaderSearch() {
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        className="h-8 w-52 rounded bg-white/15 pr-8 pl-8 text-xs text-white transition-all outline-none placeholder:text-white/60 hover:bg-white/20 focus:bg-white focus:text-ink focus:placeholder:text-outline lg:w-64"
+        className="h-8 w-52 rounded bg-white/15 pr-8 pl-8 text-xs text-white transition-all outline-none placeholder:text-white/60 hover:bg-white/20 focus:bg-card focus:text-ink focus:placeholder:text-outline lg:w-64"
       />
       <kbd className="pointer-events-none absolute top-4 right-2 -translate-y-1/2 rounded border border-white/30 px-1.5 text-[10px] leading-4 text-white/70 group-focus-within:hidden">
         /
       </kbd>
 
       {showList && (
-        <div className="absolute top-full right-0 z-50 mt-1.5 w-80 rounded-lg bg-white p-2 text-ink shadow-[0_8px_24px_rgba(9,30,66,0.2),0_0_1px_rgba(9,30,66,0.31)]">
+        <div className="absolute top-full right-0 z-50 mt-1.5 w-80 rounded-lg bg-card p-2 text-ink shadow-[0_8px_24px_rgba(9,30,66,0.2),0_0_0_1px_var(--color-hairline)]">
           <p className="px-2 pt-1 pb-2 text-[11px] font-semibold tracking-wider text-ink-subtle uppercase">
             {hasQuery ? 'Bảng' : 'Đã xem gần đây'}
           </p>

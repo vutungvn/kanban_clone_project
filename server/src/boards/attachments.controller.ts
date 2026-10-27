@@ -1,20 +1,16 @@
 import {
-  ArgumentsHost,
   Body,
-  Catch,
   Controller,
   Delete,
   HttpCode,
   HttpStatus,
   Param,
   Patch,
-  PayloadTooLargeException,
   Post,
   UploadedFile,
   UseFilters,
   UseGuards,
   UseInterceptors,
-  type ExceptionFilter,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -29,12 +25,12 @@ import {
   ApiServiceUnavailableResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import type { Response } from 'express';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ErrorResponseDto } from '../common/dto/error-response.dto';
 import { ApiAuth, ApiForbidden, ApiNotFound, ApiValidationError } from '../common/swagger/api-responses';
+import { FileTooLargeFilter } from '../storage/file-too-large.filter';
 import { MAX_ATTACHMENT_SIZE, type UploadedFileData } from '../storage/files';
 import { UPLOAD_FAILED } from '../storage/storage.service';
 import { ATTACHMENT_NOT_FOUND, AttachmentsService, FILE_REQUIRED } from './attachments.service';
@@ -44,18 +40,6 @@ import { UploadAttachmentResponseDto } from './dto/card.dto';
 
 const VIEWER_FORBIDDEN = 'Bạn chỉ có quyền xem bảng này';
 const FILE_TOO_LARGE = `Tệp tối đa ${MAX_ATTACHMENT_SIZE / 1024 / 1024} MB`;
-
-/** Multer báo "File too large" (tiếng Anh) khi vượt giới hạn → đổi sang câu tiếng Việt. */
-@Catch(PayloadTooLargeException)
-class FileTooLargeFilter implements ExceptionFilter {
-  catch(_exception: PayloadTooLargeException, host: ArgumentsHost) {
-    host
-      .switchToHttp()
-      .getResponse<Response>()
-      .status(HttpStatus.PAYLOAD_TOO_LARGE)
-      .json({ statusCode: HttpStatus.PAYLOAD_TOO_LARGE, message: FILE_TOO_LARGE, error: 'Payload Too Large' });
-  }
-}
 
 @ApiTags('Attachments')
 @ApiAuth()
@@ -87,7 +71,7 @@ export class AttachmentsController {
   })
   @ApiForbidden(VIEWER_FORBIDDEN)
   @ApiNotFound(CARD_NOT_FOUND)
-  @UseFilters(FileTooLargeFilter)
+  @UseFilters(new FileTooLargeFilter(FILE_TOO_LARGE))
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_ATTACHMENT_SIZE, files: 1 } }))
   @Post('cards/:cardId/attachments')
   upload(@CurrentUser() user: AuthUser, @Param('cardId') cardId: string, @UploadedFile() file: UploadedFileData | undefined) {

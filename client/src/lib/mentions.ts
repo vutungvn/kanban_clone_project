@@ -11,6 +11,7 @@ const MAX_QUERY = 40;
 export interface MentionMember {
   id: string;
   name: string;
+  avatarUrl?: string | null;
 }
 
 /** Đang gõ `@...` ngay trước con trỏ? Trả về vị trí `@` và phần đã gõ sau nó. */

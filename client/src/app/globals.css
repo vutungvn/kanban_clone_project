@@ -14,6 +14,11 @@
   --color-navy: #1d3052; /* thanh header của app */
   --color-list: #f1f2f4; /* nền cột danh sách trong board */
 
+  /* Nền thẻ, modal, popover, ô nhập */
+  --color-card: #ffffff;
+  /* Viền mảnh quanh ô nhập / popover */
+  --color-hairline: rgba(9, 30, 66, 0.14);
+
   /* Bề mặt (nhạt → đậm) */
   --color-surface: #f9f9ff;
   --color-surface-low: #f1f3ff;
@@ -53,4 +58,31 @@
       transform: scaleX(0);
     }
   }
+}
+
+/*
+ * Giao diện tối: đổi giá trị token (mọi class bg-card, text-ink... tự đổi theo).
+ * <html data-theme="dark"> do script trong app/layout.tsx đặt trước khi trang hiện ra (xem lib/theme.ts).
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-brand: #2f7bf0;
+  --color-brand-hover: #4a8ff5;
+  --color-ink: #dee4ea;
+  --color-ink-subtle: #a9b4c2;
+  --color-outline: #8c9bab;
+  --color-navy: #161a1d;
+  --color-list: #101204;
+  --color-card: #282e33;
+  --color-hairline: rgba(255, 255, 255, 0.16);
+  --color-surface: #1d2125;
+  --color-surface-low: #2f363c;
+  --color-surface-mid: #38414a;
+  --color-surface-high: #454f59;
+  --color-surface-highest: #596773;
+  --color-danger: #ef5c51;
+  --color-danger-soft: #5d1f1a;
+  --color-success: #1f845a;
+  --color-success-ink: #4bce97;
+  --color-success-soft: #164b35;
 }

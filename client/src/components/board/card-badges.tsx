@@ -125,10 +125,10 @@ export function CardFace({ card }: { card: Card }) {
           {members.length > 0 && (
             <span className="ml-auto flex -space-x-1.5">
               {members.slice(0, 4).map((m) => (
-                <Avatar key={m.id} name={m.name} seed={m.id} size={24} className="ring-2 ring-white" />
+                <Avatar key={m.id} name={m.name} seed={m.id} src={m.avatarUrl} size={24} className="ring-2 ring-card" />
               ))}
               {members.length > 4 && (
-                <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-surface-high px-1 text-[10px] font-medium text-ink ring-2 ring-white">
+                <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-surface-high px-1 text-[10px] font-medium text-ink ring-2 ring-card">
                   +{members.length - 4}
                 </span>
               )}

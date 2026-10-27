@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import { cn } from '@/lib/cn';
 
 const COLORS = ['bg-brand', 'bg-success', 'bg-purple-600', 'bg-rose-600', 'bg-amber-600', 'bg-teal-600'];
@@ -20,18 +23,37 @@ export function givenName(name: string) {
   return name.trim().split(/\s+/).pop() ?? name;
 }
 
+/** Ảnh đại diện; chưa có ảnh (hoặc ảnh lỗi) thì hiện chữ cái đầu trên nền màu. */
 export function Avatar({
   name,
   seed,
+  src,
   size = 32,
   className,
 }: {
   name: string;
   /** Dùng id user để màu cố định kể cả khi đổi tên */
   seed?: string;
+  src?: string | null;
   size?: number;
   className?: string;
 }) {
+  const [failed, setFailed] = useState<string | null>(null);
+  if (src && failed !== src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        title={name}
+        width={size}
+        height={size}
+        draggable={false}
+        onError={() => setFailed(src)}
+        style={{ width: size, height: size }}
+        className={cn('inline-block shrink-0 rounded-full bg-surface-mid object-cover', className)}
+      />
+    );
+  }
   return (
     <span
       title={name}

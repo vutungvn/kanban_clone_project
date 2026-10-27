@@ -19,7 +19,7 @@ import { LabelChip, PRIMARY_BUTTON, SECONDARY_BUTTON, SectionHeading, useAutosiz
 const MAX_COMMENT = 5_000;
 const DETAILS_KEY = 'kanban.activity-details';
 const TEXTAREA =
-  'w-full resize-none overflow-hidden rounded-lg bg-white px-3 py-2 text-sm leading-relaxed text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] outline-none placeholder:text-outline focus:shadow-[0_0_0_2px_var(--color-brand)]';
+  'w-full resize-none overflow-hidden rounded-lg bg-card px-3 py-2 text-sm leading-relaxed text-ink shadow-[0_0_0_1px_var(--color-hairline)] outline-none placeholder:text-outline focus:shadow-[0_0_0_2px_var(--color-brand)]';
 /** Nút "Sửa" / "Xoá" nhỏ dưới bình luận */
 const COMMENT_ACTION =
   'inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-ink-subtle transition-colors hover:bg-surface-low hover:text-ink';
@@ -290,7 +290,7 @@ function CommentComposer({
   members,
   onSubmit,
 }: {
-  user: { id: string; name: string };
+  user: { id: string; name: string; avatarUrl: string | null };
   members: MentionMember[];
   onSubmit: (text: string) => Promise<void>;
 }) {
@@ -317,7 +317,7 @@ function CommentComposer({
 
   return (
     <div className="flex items-start gap-3">
-      <Avatar name={user.name} seed={user.id} size={32} className="shrink-0" />
+      <Avatar name={user.name} seed={user.id} src={user.avatarUrl} size={32} className="shrink-0" />
       {open ? (
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <MentionTextarea
@@ -357,7 +357,7 @@ function CommentComposer({
           type="button"
           onClick={() => setOpen(true)}
           className={cn(
-            'min-h-10 flex-1 truncate rounded-lg bg-white px-3 py-2 text-left text-sm shadow-[0_0_0_1px_rgba(9,30,66,0.14)] transition-colors hover:bg-surface-low',
+            'min-h-10 flex-1 truncate rounded-lg bg-card px-3 py-2 text-left text-sm shadow-[0_0_0_1px_var(--color-hairline)] transition-colors hover:bg-surface-low',
             value ? 'text-ink' : 'text-ink-subtle',
           )}
         >
@@ -372,7 +372,7 @@ function CommentComposer({
 
 function Author({ activity }: { activity: Activity }) {
   return activity.user ? (
-    <Avatar name={activity.user.name} seed={activity.user.id} size={32} className="shrink-0" />
+    <Avatar name={activity.user.name} seed={activity.user.id} src={activity.user.avatarUrl} size={32} className="shrink-0" />
   ) : (
     <span className="h-8 w-8 shrink-0 rounded-full bg-surface-high" aria-hidden />
   );
@@ -440,11 +440,11 @@ function CommentItem({
           <>
             <div
               className={cn(
-                'mt-1 rounded-lg bg-white px-3 py-2 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap transition-shadow',
+                'mt-1 rounded-lg bg-card px-3 py-2 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap transition-shadow',
                 // Đang hỏi xác nhận xoá → đánh dấu bình luận nào sắp bị xoá
                 confirm.anchor
                   ? 'shadow-[0_0_0_2px_var(--color-danger)]'
-                  : 'shadow-[0_0_0_1px_rgba(9,30,66,0.14)]',
+                  : 'shadow-[0_0_0_1px_var(--color-hairline)]',
               )}
             >
               <CommentText text={comment.text ?? ''} members={members} meId={meId} />
@@ -524,7 +524,7 @@ function CommentEditor({
   };
 
   return (
-    <div className="mt-1 rounded-lg bg-white shadow-[0_0_0_2px_var(--color-brand)]">
+    <div className="mt-1 rounded-lg bg-card shadow-[0_0_0_2px_var(--color-brand)]">
       <MentionTextarea
         inputRef={ref}
         members={members}

@@ -98,7 +98,7 @@ function ToastCard({ item }: { item: ToastItem }) {
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
       className={cn(
-        'pointer-events-auto relative flex w-full max-w-sm items-start gap-3 overflow-hidden rounded-lg bg-white py-3 pr-2.5 pl-3.5 shadow-[0_8px_24px_rgba(9,30,66,0.22),0_0_1px_rgba(9,30,66,0.31)] motion-reduce:animate-none',
+        'pointer-events-auto relative flex w-full max-w-sm items-start gap-3 overflow-hidden rounded-lg bg-card py-3 pr-2.5 pl-3.5 shadow-[0_8px_24px_rgba(9,30,66,0.22),0_0_0_1px_var(--color-hairline)] motion-reduce:animate-none',
         item.leaving ? 'animate-toast-out' : 'animate-toast-in',
       )}
     >

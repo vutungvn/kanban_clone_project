@@ -46,7 +46,7 @@ export function MembersPopoverContent({
                     'flex w-full items-center gap-2.5 rounded px-1.5 py-1.5 text-left text-sm transition-colors hover:bg-surface-low',
                   )}
                 >
-                  <Avatar name={m.name} seed={m.id} size={28} />
+                  <Avatar name={m.name} seed={m.id} src={m.avatarUrl} size={28} />
                   <span className="min-w-0 flex-1 truncate">
                     {m.name}
                     {m.id === meId && <span className="ml-1 text-xs text-ink-subtle">(bạn)</span>}

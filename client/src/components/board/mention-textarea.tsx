@@ -98,7 +98,7 @@ export function MentionTextarea({ value, onValueChange, members, inputRef, onKey
           id={listId}
           role="listbox"
           aria-label="Nhắc tên thành viên"
-          className="absolute top-full left-0 z-20 mt-1 w-64 rounded-lg bg-white p-1 shadow-[0_8px_24px_rgba(9,30,66,0.2),0_0_1px_rgba(9,30,66,0.31)]"
+          className="absolute top-full left-0 z-20 mt-1 w-64 rounded-lg bg-card p-1 shadow-[0_8px_24px_rgba(9,30,66,0.2),0_0_0_1px_var(--color-hairline)]"
         >
           {options.map((m, i) => (
             <li
@@ -115,7 +115,7 @@ export function MentionTextarea({ value, onValueChange, members, inputRef, onKey
                 i === activeIndex ? 'bg-surface-mid text-ink' : 'text-ink',
               )}
             >
-              <Avatar name={m.name} seed={m.id} size={24} />
+              <Avatar name={m.name} seed={m.id} src={m.avatarUrl} size={24} />
               <span className="min-w-0 flex-1 truncate">{m.name}</span>
             </li>
           ))}

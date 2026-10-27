@@ -77,7 +77,7 @@ export function ArchiveModal({ board, actions, onClose }: { board: BoardDetail; 
           onChange={(e) => setQuery(e.target.value)}
           placeholder={tab === 'cards' ? 'Tìm thẻ đã lưu trữ...' : 'Tìm danh sách đã lưu trữ...'}
           aria-label="Tìm mục đã lưu trữ"
-          className="h-9 w-full rounded bg-white pr-3 pl-9 text-sm shadow-[0_0_0_1px_rgba(9,30,66,0.14)] outline-none placeholder:text-outline focus:shadow-[0_0_0_2px_var(--color-brand)]"
+          className="h-9 w-full rounded bg-card pr-3 pl-9 text-sm shadow-[0_0_0_1px_var(--color-hairline)] outline-none placeholder:text-outline focus:shadow-[0_0_0_2px_var(--color-brand)]"
         />
       </div>
 
@@ -249,7 +249,7 @@ function RowActions({
         </>
       ) : (
         <>
-          <button type="button" onClick={wrap(onRestore)} disabled={pending} className={cn(ROW_BUTTON, 'bg-white text-ink shadow-sm hover:bg-surface-mid')}>
+          <button type="button" onClick={wrap(onRestore)} disabled={pending} className={cn(ROW_BUTTON, 'bg-card text-ink shadow-sm hover:bg-surface-mid')}>
             <RotateCcw size={14} />
             Khôi phục
           </button>

@@ -34,7 +34,7 @@ export function BoardTile({ board }: { board: BoardSummary }) {
         {board.members.length > 0 && (
           <div className="flex -space-x-1.5">
             {board.members.slice(0, MAX_AVATARS).map((m) => (
-              <Avatar key={m.id} name={m.name} seed={m.id} size={20} className="ring-2 ring-white/60" />
+              <Avatar key={m.id} name={m.name} seed={m.id} src={m.avatarUrl} size={20} className="ring-2 ring-white/60" />
             ))}
             {extraMembers > 0 && (
               <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/30 px-1 text-[10px] font-semibold ring-2 ring-white/60">
@@ -57,7 +57,7 @@ export function CreateBoardTile({ onClick }: { onClick: (e: MouseEvent<HTMLEleme
       onClick={onClick}
       className="flex h-24 flex-col items-center justify-center gap-2 rounded-lg bg-surface-low text-sm text-ink transition-colors hover:bg-surface-mid"
     >
-      <span className="flex h-7 w-7 items-center justify-center rounded bg-white text-brand shadow-sm">
+      <span className="flex h-7 w-7 items-center justify-center rounded bg-card text-brand shadow-sm">
         <Plus size={18} />
       </span>
       Tạo bảng mới

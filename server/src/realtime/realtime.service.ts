@@ -11,6 +11,7 @@ export const userRoom = (userId: string) => `user:${userId}`;
 /** Dữ liệu gắn vào mỗi socket sau khi xác thực. */
 export interface SocketData {
   userId: string;
+  sessionId: string;
 }
 
 /** Sự kiện server → client */
@@ -57,6 +58,17 @@ export class RealtimeService {
     const socketId = exceptOrigin ? currentSocketId() : undefined;
     const room = this.server.to(userRoom(userId));
     (socketId ? room.except(socketId) : room).emit(event, payload);
+  }
+
+  /** Các phiên bị đăng xuất từ xa: báo cho tab của phiên đó (tự đăng xuất) rồi ngắt kết nối. */
+  async sessionsRevoked(userId: string, sessionIds: string[]) {
+    if (!this.server || !sessionIds.length) return;
+    const sockets = await this.server.in(userRoom(userId)).fetchSockets();
+    for (const socket of sockets) {
+      if (!sessionIds.includes((socket.data as SocketData).sessionId)) continue;
+      socket.emit('session:revoked', {});
+      socket.disconnect(true);
+    }
   }
 
   /** 1 người rời / bị xoá khỏi bảng: báo riêng cho họ và đưa ra khỏi phòng; người khác nhận "bảng đã đổi". */

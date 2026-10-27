@@ -95,7 +95,7 @@ export function Popover({
       aria-label={label}
       style={{ width, top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? 'visible' : 'hidden' }}
       // Cao hơn màn hình thì cuộn bên trong
-      className="fixed z-50 max-h-[calc(100vh-16px)] overflow-y-auto rounded-lg bg-white p-3 text-ink shadow-[0_8px_24px_rgba(9,30,66,0.2),0_0_1px_rgba(9,30,66,0.31)]"
+      className="fixed z-50 max-h-[calc(100vh-16px)] overflow-y-auto rounded-lg bg-card p-3 text-ink shadow-[0_8px_24px_rgba(9,30,66,0.2),0_0_0_1px_var(--color-hairline)]"
     >
       {children}
     </div>,

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { authApi, LoginInput, RegisterInput, User } from '@/lib/auth';
 import { boardsStore } from '@/lib/boards-store';
-import { disconnectSocket } from '@/lib/realtime';
+import { disconnectSocket, getSocket } from '@/lib/realtime';
 
 interface AuthContextValue {
   user: User | null;
@@ -12,6 +12,8 @@ interface AuthContextValue {
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
+  /** Thông tin tài khoản vừa đổi (tên, ảnh đại diện) */
+  updateUser: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -51,8 +53,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.refresh();
   }, [router]);
 
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId) return;
+    const socket = getSocket();
+    // Tab khác của mình đổi tên / ảnh đại diện → tải lại
+    const onAccountUpdated = () => {
+      authApi
+        .me()
+        .then(({ user }) => setUser(user))
+        .catch(() => undefined);
+    };
+    // Phiên này bị đăng xuất từ thiết bị khác (hoặc đổi mật khẩu ở nơi khác)
+    const onRevoked = () => void logout();
+    socket.on('account:updated', onAccountUpdated);
+    socket.on('session:revoked', onRevoked);
+    return () => {
+      socket.off('account:updated', onAccountUpdated);
+      socket.off('session:revoked', onRevoked);
+    };
+  }, [userId, logout]);
+
   const value = useMemo(
-    () => ({ user, loading, login, register, logout }),
+    () => ({ user, loading, login, register, logout, updateUser: setUser }),
     [user, loading, login, register, logout],
   );
 

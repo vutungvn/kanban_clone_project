@@ -13,6 +13,8 @@ model User {
   name              String
   passwordHash      String
   avatarUrl         String?
+  // Nơi lưu ảnh đại diện (storageKey, xem StorageService) — để xoá ảnh cũ khi đổi / gỡ
+  avatarKey         String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   sessions          Session[]
@@ -30,14 +32,16 @@ model User {
 
 // Mỗi lần đăng nhập = 1 session. Refresh token lưu dạng hash; đăng xuất = xoá session.
 model Session {
-  id        String   @id @default(cuid())
-  userId    String
-  tokenHash String
-  userAgent String?
-  ipAddress String?
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  userId       String
+  tokenHash    String
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  // Lần cuối làm mới access token (~15 phút / lần khi đang dùng)
+  lastActiveAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("sessions")

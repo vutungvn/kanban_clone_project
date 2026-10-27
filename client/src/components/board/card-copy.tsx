@@ -101,7 +101,7 @@ export function CopyCardContent({
               e.currentTarget.form?.requestSubmit();
             }
           }}
-          className="mt-1 w-full resize-none overflow-hidden rounded bg-white px-2.5 py-2 text-sm text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]"
+          className="mt-1 w-full resize-none overflow-hidden rounded bg-card px-2.5 py-2 text-sm text-ink shadow-[0_0_0_1px_var(--color-hairline)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]"
         />
 
         {shown.length > 0 && (

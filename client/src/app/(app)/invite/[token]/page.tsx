@@ -194,7 +194,7 @@ export default function InvitePage() {
 function Shell({ children }: { children: ReactNode }) {
   return (
     <main className="flex justify-center px-4 py-10 sm:py-16">
-      <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-[0_8px_24px_rgba(9,30,66,0.15),0_0_1px_rgba(9,30,66,0.31)]">
+      <div className="w-full max-w-md overflow-hidden rounded-xl bg-card shadow-[0_8px_24px_rgba(9,30,66,0.15),0_0_0_1px_var(--color-hairline)]">
         {children}
       </div>
     </main>
