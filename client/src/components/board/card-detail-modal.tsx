@@ -448,7 +448,7 @@ function ArchivedBanner({
               await onRestore();
               setPending(false);
             }}
-            className="flex h-8 items-center gap-1.5 rounded bg-white/70 px-3 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-white disabled:opacity-60"
+            className="flex h-8 items-center gap-1.5 rounded bg-card/70 px-3 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-card disabled:opacity-60"
           >
             <RotateCcw size={15} />
             {pending ? 'Đang khôi phục...' : 'Khôi phục'}
@@ -511,7 +511,7 @@ function CardTitle({ card, canEdit, onSave }: { card: Card; canEdit: boolean; on
         else setValue(card.title);
         cancelled.current = false;
       }}
-      className="-ml-2 block w-full resize-none overflow-hidden rounded bg-transparent px-2 py-1 text-2xl font-semibold text-ink outline-none transition-colors hover:bg-surface-low focus:bg-white focus:ring-2 focus:ring-brand"
+      className="-ml-2 block w-full resize-none overflow-hidden rounded bg-transparent px-2 py-1 text-2xl font-semibold text-ink outline-none transition-colors hover:bg-surface-low focus:bg-card focus:ring-2 focus:ring-brand"
     />
   );
 }
@@ -547,7 +547,7 @@ function CardMeta({
       {members.length > 0 && (
         <MetaGroup title="Thành viên">
           {members.map((m) => (
-            <Avatar key={m.id} name={m.name} seed={m.id} size={32} />
+            <Avatar key={m.id} name={m.name} seed={m.id} src={m.avatarUrl} size={32} />
           ))}
           {canEdit && <AddMetaButton label="Thêm thành viên" control={membersPop} />}
         </MetaGroup>
@@ -713,7 +713,7 @@ function DescriptionEditor({
             onCancel();
           }
         }}
-        className="max-h-[60vh] min-h-28 w-full resize-none rounded bg-white px-3 py-2 text-sm leading-relaxed text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] outline-none placeholder:text-outline focus:shadow-[0_0_0_2px_var(--color-brand)]"
+        className="max-h-[60vh] min-h-28 w-full resize-none rounded bg-card px-3 py-2 text-sm leading-relaxed text-ink shadow-[0_0_0_1px_var(--color-hairline)] outline-none placeholder:text-outline focus:shadow-[0_0_0_2px_var(--color-brand)]"
       />
       <div className="flex items-center gap-1.5">
         <button type="button" onClick={save} className={PRIMARY_BUTTON}>

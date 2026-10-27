@@ -38,7 +38,7 @@ export function BoardsSidebar({ userName }: { userName: string }) {
   const name = givenName(userName);
 
   return (
-    <aside className="sticky top-12 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col justify-between overflow-y-auto bg-white px-2 py-3 shadow-[0_1px_8px_rgba(0,0,0,0.04)] lg:flex">
+    <aside className="sticky top-12 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col justify-between overflow-y-auto bg-card px-2 py-3 shadow-[0_1px_8px_rgba(0,0,0,0.04)] lg:flex">
       <div>
         <nav aria-label="Điều hướng chính" className="flex flex-col gap-1">
           {MAIN_NAV.map((item) => (

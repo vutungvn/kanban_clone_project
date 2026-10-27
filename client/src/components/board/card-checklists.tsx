@@ -15,7 +15,7 @@ import { DANGER_BUTTON, PRIMARY_BUTTON, SECONDARY_BUTTON, SectionHeading, TEXT_I
 const MAX_CHECKLIST_TITLE = 255;
 const MAX_ITEM_TITLE = 500;
 const ITEM_INPUT =
-  'w-full resize-none overflow-hidden rounded bg-white px-2.5 py-1.5 text-sm text-ink shadow-[0_0_0_2px_var(--color-brand)] outline-none placeholder:text-outline';
+  'w-full resize-none overflow-hidden rounded bg-card px-2.5 py-1.5 text-sm text-ink shadow-[0_0_0_2px_var(--color-brand)] outline-none placeholder:text-outline';
 
 /** Số mục đã xong / tổng số mục của mọi checklist trong thẻ. */
 export function checklistProgress(checklists: Checklist[]) {
@@ -110,7 +110,7 @@ export function ChecklistSection({
             maxLength={MAX_CHECKLIST_TITLE}
             onSave={(title) => void actions.renameChecklist(checklist.id, title)}
             className="rounded px-1 py-0.5 text-base font-semibold wrap-break-word hover:bg-surface-low"
-            inputClassName="h-8 w-full bg-white px-2 text-base font-semibold text-ink ring-2 ring-brand"
+            inputClassName="h-8 w-full bg-card px-2 text-base font-semibold text-ink ring-2 ring-brand"
           />
         }
       >

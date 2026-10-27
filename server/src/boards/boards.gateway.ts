@@ -9,6 +9,7 @@ import {
 } from '@nestjs/websockets';
 import type { Namespace, Socket } from 'socket.io';
 import { ACCESS_COOKIE, JwtPayload } from '../auth/auth.types';
+import { SessionRevocations } from '../auth/session-revocations';
 import { boardRoom, RealtimeService, SocketData, userRoom } from '../realtime/realtime.service';
 import { BoardAccessService } from './board-access.service';
 
@@ -34,6 +35,7 @@ export class BoardsGateway implements OnGatewayInit, OnGatewayConnection {
     private readonly jwt: JwtService,
     private readonly access: BoardAccessService,
     private readonly realtime: RealtimeService,
+    private readonly revocations: SessionRevocations,
   ) {}
 
   afterInit(server: Namespace) {
@@ -46,7 +48,8 @@ export class BoardsGateway implements OnGatewayInit, OnGatewayConnection {
       this.jwt
         .verifyAsync<JwtPayload>(token)
         .then((payload) => {
-          (socket.data as SocketData).userId = payload.sub;
+          if (this.revocations.has(payload.sid)) return next(new Error('unauthorized'));
+          Object.assign(socket.data as SocketData, { userId: payload.sub, sessionId: payload.sid });
           next();
         })
         .catch(() => next(new Error('unauthorized')));

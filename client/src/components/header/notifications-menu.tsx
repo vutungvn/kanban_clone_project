@@ -239,7 +239,7 @@ function NotificationRow({ item, onOpen, onToggleRead }: { item: Notification; o
         className="flex w-full items-start gap-3 py-3 pr-10 pl-3 text-left transition-colors hover:bg-surface-low"
       >
         {item.actor ? (
-          <Avatar name={item.actor.name} seed={item.actor.id} size={32} className="shrink-0" />
+          <Avatar name={item.actor.name} seed={item.actor.id} src={item.actor.avatarUrl} size={32} className="shrink-0" />
         ) : (
           <span className="h-8 w-8 shrink-0 rounded-full bg-surface-high" aria-hidden />
         )}
@@ -259,7 +259,7 @@ function NotificationRow({ item, onOpen, onToggleRead }: { item: Notification; o
             )}
           </span>
           {quote && (
-            <span className="mt-1.5 line-clamp-2 block rounded-md bg-white px-2 py-1 text-xs wrap-break-word text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.12)]">
+            <span className="mt-1.5 line-clamp-2 block rounded-md bg-card px-2 py-1 text-xs wrap-break-word text-ink shadow-[0_0_0_1px_var(--color-hairline)]">
               {quote}
             </span>
           )}

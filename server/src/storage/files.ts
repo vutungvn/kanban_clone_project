@@ -39,6 +39,14 @@ export function safeExtension(name: string) {
   return /^\.[a-z0-9]{1,10}$/.test(ext) ? ext : '';
 }
 
+/** Ảnh đại diện tối đa 5 MB (Cloudinary tự cắt vuông 256px). */
+export const MAX_AVATAR_SIZE = 5 * 1024 * 1024;
+
+/** Ảnh đại diện: cắt vuông 256px quanh khuôn mặt (nếu có), tự chọn định dạng + chất lượng. */
+export function avatarUrl(url: string) {
+  return url.includes('/image/upload/') ? url.replace('/image/upload/', '/image/upload/c_fill,g_face,w_256,h_256,f_auto,q_auto/') : url;
+}
+
 /** Ảnh thu nhỏ để hiển thị trên thẻ / trong modal: Cloudinary tự co (rộng tối đa 600px, tự chọn định dạng + chất lượng). */
 export function previewUrl(file: { url: string; mimeType: string }) {
   if (!isImageType(file.mimeType)) return null;

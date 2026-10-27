@@ -69,12 +69,12 @@ export function Field({
           aria-invalid={error ? true : undefined}
           aria-describedby={error || hint ? messageId : undefined}
           className={cn(
-            'h-10 w-full rounded bg-white text-sm text-ink transition-shadow outline-none placeholder:text-outline',
+            'h-10 w-full rounded bg-card text-sm text-ink transition-shadow outline-none placeholder:text-outline',
             Icon ? 'pl-9' : 'pl-3',
             trailingContent ? 'pr-10' : 'pr-3',
             error
               ? 'shadow-[0_0_0_1.5px_var(--color-danger)] focus:shadow-[0_0_0_2px_var(--color-danger)]'
-              : 'shadow-[0_0_0_1px_rgba(9,30,66,0.14)] focus:shadow-[0_0_0_2px_var(--color-brand)]',
+              : 'shadow-[0_0_0_1px_var(--color-hairline)] focus:shadow-[0_0_0_2px_var(--color-brand)]',
             className,
           )}
           {...props}

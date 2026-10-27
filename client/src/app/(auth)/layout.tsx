@@ -18,7 +18,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       <main className="relative flex min-h-screen flex-col items-center justify-center px-4 py-6">
         <div className="w-full max-w-105">
-          <div className="rounded-lg bg-white p-6 shadow-[0_12px_36px_-6px_rgba(9,30,66,0.18),0_0_1px_rgba(9,30,66,0.25)] sm:p-8">
+          <div className="rounded-lg bg-card p-6 shadow-[0_12px_36px_-6px_rgba(9,30,66,0.18),0_0_0_1px_var(--color-hairline)] sm:p-8">
             {children}
           </div>
           <p className="mt-4 flex items-center justify-center gap-2 text-xs text-ink-subtle/80">

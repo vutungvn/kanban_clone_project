@@ -71,7 +71,7 @@ export function AddCardComposer({
         onKeyDown={(e) => onKeyDown(e, onClose)}
         placeholder="Nhập tiêu đề cho thẻ này..."
         aria-label="Tiêu đề thẻ mới"
-        className="w-full resize-none rounded-lg bg-white p-2.5 text-sm text-ink shadow-sm ring-2 ring-brand outline-none placeholder:text-outline"
+        className="w-full resize-none rounded-lg bg-card p-2.5 text-sm text-ink shadow-sm ring-2 ring-brand outline-none placeholder:text-outline"
       />
       <div className="flex items-center gap-1.5">
         <button type="button" onClick={() => void submit()} className={PRIMARY_BUTTON}>
@@ -126,7 +126,7 @@ export function AddListComposer({
         onKeyDown={(e) => onKeyDown(e, () => setOpen(false))}
         placeholder="Nhập tên danh sách..."
         aria-label="Tên danh sách mới"
-        className="h-9 w-full rounded-lg bg-white px-3 text-sm text-ink shadow-sm ring-2 ring-brand outline-none placeholder:text-outline"
+        className="h-9 w-full rounded-lg bg-card px-3 text-sm text-ink shadow-sm ring-2 ring-brand outline-none placeholder:text-outline"
       />
       <div className="flex items-center gap-1.5">
         <button type="button" onClick={() => void submit()} className={PRIMARY_BUTTON}>

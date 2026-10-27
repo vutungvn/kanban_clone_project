@@ -70,7 +70,7 @@ export function BoardFilterButton({
             if (e.key === 'Enter') close();
           }}
           placeholder="Nhập tên bảng..."
-          className="h-9 w-full rounded bg-white px-3 text-sm text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] transition-shadow outline-none placeholder:text-outline focus:shadow-[0_0_0_2px_var(--color-brand)]"
+          className="h-9 w-full rounded bg-card px-3 text-sm text-ink shadow-[0_0_0_1px_var(--color-hairline)] transition-shadow outline-none placeholder:text-outline focus:shadow-[0_0_0_2px_var(--color-brand)]"
         />
         <p className="mt-1.5 text-xs text-ink-subtle">Tìm theo tên bảng, không phân biệt dấu.</p>
 

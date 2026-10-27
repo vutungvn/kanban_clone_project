@@ -16,7 +16,7 @@ const ICON_BOX = 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full
 const DUE_OPTIONS: { value: DueFilter; label: string; icon: ReactNode }[] = [
   { value: 'none', label: 'Không có ngày hết hạn', icon: <span className={cn(ICON_BOX, 'bg-surface-mid text-ink-subtle')}><CalendarX size={14} /></span> },
   { value: 'overdue', label: 'Quá hạn', icon: <span className={cn(ICON_BOX, 'bg-danger text-white')}><Clock size={14} /></span> },
-  { value: 'day', label: 'Hết hạn trong 24 giờ tới', icon: <span className={cn(ICON_BOX, 'bg-[#f5cd47] text-ink')}><Clock size={14} /></span> },
+  { value: 'day', label: 'Hết hạn trong 24 giờ tới', icon: <span className={cn(ICON_BOX, 'bg-[#f5cd47] text-[#172b4d]')}><Clock size={14} /></span> },
   { value: 'week', label: 'Hết hạn trong 7 ngày tới', icon: <span className={cn(ICON_BOX, 'bg-surface-mid text-ink-subtle')}><Clock size={14} /></span> },
   { value: 'complete', label: 'Đã đánh dấu hoàn thành', icon: <span className={cn(ICON_BOX, 'bg-success text-white')}><CircleCheck size={14} /></span> },
 ];
@@ -72,7 +72,7 @@ export function CardFilterPopoverContent({
             checked={filter.members.includes(m.id)}
             onChange={(on) => onChange({ ...filter, members: toggle(filter.members, m.id, on) })}
           >
-            <Avatar name={m.name} seed={m.id} size={24} />
+            <Avatar name={m.name} seed={m.id} src={m.avatarUrl} size={24} />
             <span className="truncate">{m.id === meId ? 'Thẻ giao cho tôi' : m.name}</span>
           </OptionRow>
         ))}

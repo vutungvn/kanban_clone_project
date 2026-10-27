@@ -21,8 +21,8 @@ const ROLES: { value: BoardRole; label: string; description: string }[] = [
 ];
 const roleLabel = (role: BoardRole) => ROLES.find((r) => r.value === role)?.label ?? role;
 
-const FIELD = 'h-10 rounded bg-white text-sm text-ink outline-none transition-shadow';
-const FIELD_RING = 'shadow-[0_0_0_1px_rgba(9,30,66,0.14)] focus:shadow-[0_0_0_2px_var(--color-brand)]';
+const FIELD = 'h-10 rounded bg-card text-sm text-ink outline-none transition-shadow';
+const FIELD_RING = 'shadow-[0_0_0_1px_var(--color-hairline)] focus:shadow-[0_0_0_2px_var(--color-brand)]';
 const MENU_ITEM = 'flex w-full items-start gap-2 rounded px-2.5 py-2 text-left text-sm transition-colors';
 
 type Tab = 'members' | 'requests';
@@ -217,7 +217,7 @@ function MemberRow({
 
   return (
     <li className="flex items-center gap-3 border-b border-surface-low py-3 last:border-0">
-      <Avatar name={member.name} seed={member.id} size={36} />
+      <Avatar name={member.name} seed={member.id} src={member.avatarUrl} size={36} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">
           {member.name}
@@ -232,7 +232,7 @@ function MemberRow({
           aria-haspopup="dialog"
           aria-expanded={!!menu.anchor}
           aria-label={`Vai trò của ${member.name}: ${roleLabel(member.role)}. Đổi vai trò hoặc xoá`}
-          className="group flex h-8 shrink-0 items-center gap-1 rounded bg-surface-low px-2.5 text-xs font-medium transition-colors hover:bg-surface-mid aria-expanded:bg-white aria-expanded:text-brand aria-expanded:ring-1 aria-expanded:ring-brand"
+          className="group flex h-8 shrink-0 items-center gap-1 rounded bg-surface-low px-2.5 text-xs font-medium transition-colors hover:bg-surface-mid aria-expanded:bg-card aria-expanded:text-brand aria-expanded:ring-1 aria-expanded:ring-brand"
         >
           {roleLabel(member.role)}
           <ChevronDown size={14} className="transition-transform group-aria-expanded:rotate-180" />

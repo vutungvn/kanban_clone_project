@@ -55,7 +55,7 @@ export function BoardHeader({
           maxLength={100}
           onSave={(title) => void actions.updateBoard({ title })}
           className="max-w-[40vw] truncate rounded px-2.5 py-1 text-base font-semibold tracking-tight hover:bg-white/10"
-          inputClassName="h-8 w-64 bg-white px-2.5 text-base font-semibold text-ink ring-2 ring-brand"
+          inputClassName="h-8 w-64 bg-card px-2.5 text-base font-semibold text-ink ring-2 ring-brand"
         />
         <StarButton board={board} alwaysVisible onChange={actions.setStarredLocal} className="flex h-8 w-8 items-center justify-center" />
         <span className="mx-1 h-5 w-px bg-white/20" />
@@ -78,13 +78,13 @@ export function BoardHeader({
           onClick={() => setSharing(true)}
           aria-haspopup="dialog"
           aria-label="Chia sẻ bảng"
-          className="flex h-8 items-center gap-1.5 rounded bg-white px-2.5 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-surface-low sm:px-3"
+          className="flex h-8 items-center gap-1.5 rounded bg-card px-2.5 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-surface-low sm:px-3"
         >
           <UserPlus size={18} />
           <span className="hidden sm:inline">Chia sẻ</span>
         </button>
         {/* Luôn giữ cùng 1 nút mở popover (đổi kiểu khi đang lọc) để popover không mất chỗ neo */}
-        <div className={cn('flex h-8 items-center rounded', filtering && 'bg-white text-sm font-medium text-ink shadow-sm')}>
+        <div className={cn('flex h-8 items-center rounded', filtering && 'bg-card text-sm font-medium text-ink shadow-sm')}>
           <button
             type="button"
             onClick={filterMenu.toggle}
@@ -164,7 +164,7 @@ function MemberStack({ members, onClick }: { members: BoardMember[]; onClick: ()
       className="flex -space-x-1.5 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white"
     >
       {shown.map((m) => (
-        <Avatar key={m.id} name={m.name} seed={m.id} size={28} className="ring-2 ring-white/30" />
+        <Avatar key={m.id} name={m.name} seed={m.id} src={m.avatarUrl} size={28} className="ring-2 ring-white/30" />
       ))}
       {extra > 0 && (
         <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-surface-high px-1 text-[11px] font-medium text-ink ring-2 ring-white/30">

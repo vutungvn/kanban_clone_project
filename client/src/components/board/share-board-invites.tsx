@@ -27,7 +27,7 @@ const APPROVE_ROLES: { value: BoardRole; label: string }[] = [
 ];
 
 const SMALL_SELECT =
-  'h-8 rounded bg-white px-1.5 text-xs font-medium text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]';
+  'h-8 rounded bg-card px-1.5 text-xs font-medium text-ink shadow-[0_0_0_1px_var(--color-hairline)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]';
 const TEXT_BUTTON = 'rounded px-2 py-1 text-xs font-medium transition-colors';
 
 const RELATIVE = new Intl.RelativeTimeFormat('vi', { numeric: 'auto' });
@@ -211,7 +211,7 @@ function ActiveLink({
             value={url}
             aria-label="Đường dẫn liên kết mời"
             onFocus={(e) => e.currentTarget.select()}
-            className="h-9 w-full truncate rounded bg-white pr-2 pl-8 text-xs text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]"
+            className="h-9 w-full truncate rounded bg-card pr-2 pl-8 text-xs text-ink shadow-[0_0_0_1px_var(--color-hairline)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]"
           />
         </div>
         <button
@@ -422,7 +422,7 @@ function RequestRow({
 
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-surface-low py-3 last:border-0">
-      <Avatar name={user.name} seed={user.id} size={36} />
+      <Avatar name={user.name} seed={user.id} src={user.avatarUrl} size={36} />
       <div className="min-w-0 flex-1 basis-40">
         <p className="truncate text-sm font-semibold">{user.name}</p>
         <p className="truncate text-xs text-ink-subtle">

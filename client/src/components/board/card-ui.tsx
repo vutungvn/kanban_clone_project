@@ -14,7 +14,7 @@ export const SECONDARY_BUTTON =
 export const DANGER_BUTTON =
   'h-9 w-full rounded bg-danger text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60';
 export const TEXT_INPUT =
-  'h-9 w-full rounded bg-white px-2.5 text-sm text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] outline-none placeholder:text-outline focus:shadow-[0_0_0_2px_var(--color-brand)] disabled:bg-surface-low disabled:text-ink-subtle';
+  'h-9 w-full rounded bg-card px-2.5 text-sm text-ink shadow-[0_0_0_1px_var(--color-hairline)] outline-none placeholder:text-outline focus:shadow-[0_0_0_2px_var(--color-brand)] disabled:bg-surface-low disabled:text-ink-subtle';
 /** Tiêu đề nhỏ của từng nhóm trong popover */
 export const POPOVER_SECTION = 'mb-1.5 mt-3 text-xs font-semibold text-ink-subtle';
 

@@ -165,7 +165,7 @@ export function FileDropZone({
       {over && (
         <div className="pointer-events-none absolute inset-0 z-20 rounded-xl border-2 border-dashed border-brand bg-brand/10">
           {/* Dính ở phần đang nhìn thấy — thẻ dài thì giữa modal có thể nằm ngoài màn hình */}
-          <p className="sticky top-32 mx-auto mt-32 flex w-fit items-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-brand shadow-md">
+          <p className="sticky top-32 mx-auto mt-32 flex w-fit items-center gap-2 rounded-lg bg-card px-4 py-2.5 text-sm font-semibold text-brand shadow-md">
             <Paperclip size={18} aria-hidden />
             Thả tệp vào đây để đính kèm
           </p>
@@ -535,7 +535,7 @@ export function CardCoverBanner({
           onClick={onEdit}
           aria-haspopup="dialog"
           aria-expanded={expanded}
-          className="absolute right-3 bottom-3 flex h-8 items-center gap-1.5 rounded bg-white/85 px-3 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-white"
+          className="absolute right-3 bottom-3 flex h-8 items-center gap-1.5 rounded bg-card/85 px-3 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-card"
         >
           <ImageIcon size={16} aria-hidden />
           Ảnh bìa

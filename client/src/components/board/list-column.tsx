@@ -74,7 +74,7 @@ export function ListColumn({
             maxLength={100}
             onSave={(title) => void actions.renameList(list.id, title)}
             className="rounded px-2 py-1 text-sm font-semibold wrap-break-word text-ink hover:bg-black/5"
-            inputClassName="h-8 w-full bg-white px-2 text-sm font-semibold text-ink ring-2 ring-brand"
+            inputClassName="h-8 w-full bg-card px-2 text-sm font-semibold text-ink ring-2 ring-brand"
           />
           <span
             title={totalCards === undefined ? undefined : `${list.cards.length} trên ${totalCards} thẻ khớp bộ lọc`}
@@ -150,7 +150,7 @@ export function ListPreview({ list }: { list: List }) {
       </div>
       <ol className="mt-1 flex flex-col gap-2 p-0.5">
         {list.cards.map((card) => (
-          <li key={card.id} className="rounded-lg bg-white p-3 text-sm wrap-break-word text-ink shadow-sm">
+          <li key={card.id} className="rounded-lg bg-card p-3 text-sm wrap-break-word text-ink shadow-sm">
             {card.title}
           </li>
         ))}
@@ -348,7 +348,7 @@ function CopyListForm({
               setTitle(e.target.value);
               setError(null);
             }}
-            className="h-9 w-full rounded bg-white px-2.5 text-sm font-normal text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]"
+            className="h-9 w-full rounded bg-card px-2.5 text-sm font-normal text-ink shadow-[0_0_0_1px_var(--color-hairline)] outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]"
           />
         </label>
         <p className="text-xs text-ink-subtle">

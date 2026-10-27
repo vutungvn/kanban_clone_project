@@ -31,7 +31,7 @@ export const DUE_STATUS_LABEL: Record<DueStatus, string | null> = {
 export const DUE_STATUS_CLASS: Record<DueStatus, string> = {
   complete: 'bg-success text-white',
   overdue: 'bg-danger text-white',
-  soon: 'bg-[#f5cd47] text-ink',
+  soon: 'bg-[#f5cd47] text-[#172b4d]',
   normal: '',
 };
 

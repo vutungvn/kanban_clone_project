@@ -83,7 +83,7 @@ export function Modal({
         tabIndex={-1}
         onKeyDown={trapFocus}
         className={cn(
-          'relative my-auto w-full rounded-xl bg-white text-ink shadow-[0_20px_48px_rgba(9,30,66,0.45)] outline-none',
+          'relative my-auto w-full rounded-xl bg-card text-ink shadow-[0_20px_48px_rgba(9,30,66,0.45)] outline-none',
           className,
         )}
       >
@@ -104,7 +104,7 @@ export function ModalCloseButton({ onClick, onCover = false }: { onClick: () => 
       title="Đóng (Esc)"
       className={cn(
         'absolute top-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full text-ink-subtle transition-colors hover:text-ink',
-        onCover ? 'bg-white/85 shadow-sm hover:bg-white' : 'hover:bg-surface-mid',
+        onCover ? 'bg-card/85 shadow-sm hover:bg-card' : 'hover:bg-surface-mid',
       )}
     >
       <X size={20} />

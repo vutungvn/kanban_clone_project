@@ -78,7 +78,7 @@ function CreateBoardForm({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         maxLength={100}
-        className="h-9 w-full rounded bg-white px-3 text-sm text-ink shadow-[0_0_0_1px_rgba(9,30,66,0.14)] transition-shadow outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]"
+        className="h-9 w-full rounded bg-card px-3 text-sm text-ink shadow-[0_0_0_1px_var(--color-hairline)] transition-shadow outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]"
       />
       {!trimmed && <p className="mt-1.5 text-xs text-ink-subtle">👋 Tiêu đề bảng là bắt buộc</p>}
 
@@ -111,7 +111,7 @@ function BoardPreview({ background }: { background: BoardBackground }) {
       )}
     >
       {['h-12', 'h-16', 'h-9'].map((h) => (
-        <div key={h} className={cn('w-14 rounded-sm bg-white/70', h)} />
+        <div key={h} className={cn('w-14 rounded-sm bg-card/70', h)} />
       ))}
     </div>
   );
