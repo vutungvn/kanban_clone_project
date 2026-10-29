@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
 import { trimString } from '../../common/transforms';
 
 export class UpdateProfileDto {
@@ -10,6 +10,12 @@ export class UpdateProfileDto {
   @IsNotEmpty({ message: 'Vui lòng nhập tên' })
   @MaxLength(50, { message: 'Tên tối đa 50 ký tự' })
   name: string;
+}
+
+export class UpdateNotificationSettingsDto {
+  @ApiProperty({ example: false, description: 'Nhận email nhắc hạn chót (thẻ được giao còn dưới 24 giờ / quá hạn)' })
+  @IsBoolean({ message: 'emailDueReminders phải là true hoặc false' })
+  emailDueReminders: boolean;
 }
 
 export class ChangePasswordDto {

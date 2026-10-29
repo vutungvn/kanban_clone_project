@@ -47,12 +47,21 @@ export class NotificationsService {
       const key = `${input.userId}:${input.type}`;
       if (input.userId === input.actorId || seen.has(key)) continue;
       seen.add(key);
-      try {
-        const notification = await this.prisma.notification.create({ data: input, include: notificationInclude });
-        this.realtime.toUser(input.userId, 'notification:new', toNotification(notification));
-      } catch (e) {
-        this.logger.warn(`Không tạo được thông báo ${input.type} cho ${input.userId}: ${String(e)}`);
-      }
+      await this.create(input);
+    }
+  }
+
+  /** Thông báo của hệ thống (không có người gây ra, `actor` = null) — vd nhắc hạn chót. */
+  async notifySystem(inputs: Omit<NotifyInput, 'actorId'>[]) {
+    for (const input of inputs) await this.create(input);
+  }
+
+  private async create(input: Omit<NotifyInput, 'actorId'> & { actorId?: string }) {
+    try {
+      const notification = await this.prisma.notification.create({ data: input, include: notificationInclude });
+      this.realtime.toUser(input.userId, 'notification:new', toNotification(notification));
+    } catch (e) {
+      this.logger.warn(`Không tạo được thông báo ${input.type} cho ${input.userId}: ${String(e)}`);
     }
   }
 

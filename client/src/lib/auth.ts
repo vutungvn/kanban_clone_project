@@ -8,6 +8,8 @@ export interface User {
   avatarUrl: string | null;
   /** null = chưa xác minh email */
   emailVerifiedAt: string | null;
+  /** Nhận email nhắc hạn chót */
+  emailDueReminders: boolean;
   createdAt: string;
 }
 
@@ -48,6 +50,8 @@ export const accountApi = {
     form.append('file', file);
     return upload<UserResponse>('/account/avatar', form, onProgress).then((r) => r.user);
   },
+  updateNotificationSettings: (settings: { emailDueReminders: boolean }) =>
+    api<UserResponse>('/account/notifications', json('PATCH', settings)).then((r) => r.user),
   removeAvatar: () => api<UserResponse>('/account/avatar', json('DELETE')).then((r) => r.user),
   /** Trả về số thiết bị khác bị đăng xuất */
   changePassword: (currentPassword: string, newPassword: string) =>

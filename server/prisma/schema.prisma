@@ -17,6 +17,8 @@ model User {
   avatarUrl         String?
   // Nơi lưu ảnh đại diện (storageKey, xem StorageService) — để xoá ảnh cũ khi đổi / gỡ
   avatarKey         String?
+  // Nhận email nhắc hạn chót (thông báo trong app vẫn luôn có)
+  emailDueReminders Boolean            @default(true)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   sessions          Session[]
@@ -159,6 +161,9 @@ model Card {
   dueDate           DateTime?
   // Đánh dấu đã hoàn thành hạn chót — xoá hạn chót thì tự về false
   dueComplete       Boolean        @default(false)
+  // Lúc đã nhắc "sắp hết hạn" / "quá hạn" (xem DueRemindersService) — đổi hạn chót thì về null để nhắc lại
+  dueSoonNotifiedAt DateTime?
+  overdueNotifiedAt DateTime?
   // Đã lưu trữ: ẩn khỏi bảng (vẫn mở được qua link); khôi phục thì về đúng vị trí cũ
   archivedAt        DateTime?
   // Ảnh bìa: 1 màu (key trong COVER_COLORS) HOẶC 1 ảnh đính kèm của chính thẻ — không có cả hai
@@ -177,6 +182,7 @@ model Card {
   coverAttachment   Attachment?    @relation("CardCover", fields: [coverAttachmentId], references: [id], onDelete: SetNull)
 
   @@index([listId, position])
+  @@index([dueDate])
   @@map("cards")
 }
 
@@ -324,6 +330,8 @@ enum NotificationType {
   CARD_COMMENT
   COMMENT_MENTION
   CARD_DUE_CHANGED
+  CARD_DUE_SOON
+  CARD_OVERDUE
   CARD_MOVED
   BOARD_INVITED
   ROLE_CHANGED
@@ -337,7 +345,7 @@ model Notification {
   id        String           @id @default(cuid())
   // Người nhận
   userId    String
-  // Người gây ra; null nếu tài khoản đã bị xoá
+  // Người gây ra; null nếu tài khoản đã bị xoá hoặc là thông báo của hệ thống (nhắc hạn chót)
   actorId   String?
   boardId   String?
   cardId    String?

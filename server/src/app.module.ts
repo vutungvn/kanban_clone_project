@@ -10,6 +10,7 @@ import { HttpThrottlerGuard } from './common/http-throttler.guard';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { RemindersModule } from './reminders/reminders.module';
 import { StorageModule } from './storage/storage.module';
 import { UsersModule } from './users/users.module';
 
@@ -25,6 +26,7 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     BoardsModule,
     NotificationsModule,
+    RemindersModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: HttpThrottlerGuard }],

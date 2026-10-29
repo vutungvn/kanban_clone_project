@@ -60,7 +60,7 @@ export class NotificationDto {
     example: { boardTitle: 'Dự án Website', cardTitle: 'Thiết kế trang chủ', text: '@Bình xem giúp mình nhé' },
     description:
       'Dữ liệu chụp lại lúc tạo: luôn có `boardTitle`; thông báo về thẻ có `cardTitle`; ' +
-      'CARD_COMMENT / COMMENT_MENTION `{ text }` (trích đoạn), CARD_DUE_CHANGED `{ dueDate }`, ' +
+      'CARD_COMMENT / COMMENT_MENTION `{ text }` (trích đoạn), CARD_DUE_CHANGED / CARD_DUE_SOON / CARD_OVERDUE `{ dueDate }`, ' +
       'CARD_MOVED `{ fromList, toList }`, BOARD_INVITED / ROLE_CHANGED / JOIN_APPROVED `{ role }`',
   })
   data: Record<string, unknown>;
@@ -77,7 +77,7 @@ export class NotificationDto {
   @ApiProperty({ type: String, format: 'date-time', example: '2026-01-15T08:30:00.000Z' })
   createdAt: Date;
 
-  @ApiProperty({ type: NotificationActorDto, nullable: true, description: 'Người gây ra; null nếu tài khoản đã bị xoá' })
+  @ApiProperty({ type: NotificationActorDto, nullable: true, description: 'Người gây ra; null nếu tài khoản đã bị xoá hoặc là thông báo của hệ thống (CARD_DUE_SOON / CARD_OVERDUE)' })
   actor: NotificationActorDto | null;
 }
 

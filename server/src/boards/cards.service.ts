@@ -103,6 +103,8 @@ export class CardsService {
           dueDate: dto.dueDate === undefined ? undefined : dueDate,
           // Xoá hạn chót → bỏ luôn trạng thái hoàn thành
           dueComplete: dueDate ? dto.dueComplete : false,
+          // Đổi hạn chót → nhắc lại theo hạn mới
+          ...(!sameDate(dueDate, current.dueDate) && { dueSoonNotifiedAt: null, overdueNotifiedAt: null }),
         },
         include: cardInclude,
       });

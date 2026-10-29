@@ -1,17 +1,18 @@
 'use client';
 
-import { Bell, LoaderCircle } from 'lucide-react';
+import { Bell, Clock, LoaderCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Avatar } from '@/components/avatar';
 import { Popover, PopoverHeader, usePopoverAnchor } from '@/components/popover';
 import { toast } from '@/components/toast';
 import { errorMessage } from '@/lib/api';
-import { formatFull, formatRelative } from '@/lib/card-dates';
+import { DUE_STATUS_CLASS, formatFull, formatRelative } from '@/lib/card-dates';
 import { cn } from '@/lib/cn';
 import {
   actorName,
   describeNotification,
+  isSystemNotification,
   notificationHref,
   notificationsApi,
   notificationText,
@@ -230,6 +231,7 @@ function NotificationRow({ item, onOpen, onToggleRead }: { item: Notification; o
   const unread = !item.readAt;
   const cardRelated = typeof item.data.cardTitle === 'string';
   const quote = typeof item.data.text === 'string' ? item.data.text : null;
+  const system = isSystemNotification(item);
 
   return (
     <li className={cn('group relative border-b border-surface-low last:border-0', unread && 'bg-brand/4')}>
@@ -238,14 +240,28 @@ function NotificationRow({ item, onOpen, onToggleRead }: { item: Notification; o
         onClick={onOpen}
         className="flex w-full items-start gap-3 py-3 pr-10 pl-3 text-left transition-colors hover:bg-surface-low"
       >
-        {item.actor ? (
+        {system ? (
+          <span
+            className={cn(
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+              DUE_STATUS_CLASS[item.type === 'CARD_OVERDUE' ? 'overdue' : 'soon'],
+            )}
+            aria-hidden
+          >
+            <Clock size={16} />
+          </span>
+        ) : item.actor ? (
           <Avatar name={item.actor.name} seed={item.actor.id} src={item.actor.avatarUrl} size={32} className="shrink-0" />
         ) : (
           <span className="h-8 w-8 shrink-0 rounded-full bg-surface-high" aria-hidden />
         )}
         <span className="min-w-0 flex-1">
           <span className="block text-sm leading-snug wrap-break-word">
-            <strong className="font-semibold">{actorName(item)}</strong>{' '}
+            {!system && (
+              <>
+                <strong className="font-semibold">{actorName(item)}</strong>{' '}
+              </>
+            )}
             {describeNotification(item).map((s, i) =>
               s.strong ? (
                 <strong key={i} className="font-semibold">
