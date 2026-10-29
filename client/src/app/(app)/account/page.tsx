@@ -1,21 +1,23 @@
 'use client';
 
-import { Palette, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react';
+import { Bell, Palette, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { AppearanceSection } from '@/components/account/appearance-section';
+import { NotificationsSection } from '@/components/account/notifications-section';
 import { ProfileSection } from '@/components/account/profile-section';
 import { SecuritySection } from '@/components/account/security-section';
 import { useAuth } from '@/components/auth-provider';
 import { Avatar } from '@/components/avatar';
 import { cn } from '@/lib/cn';
 
-type AccountTab = 'profile' | 'security' | 'appearance';
+type AccountTab = 'profile' | 'security' | 'notifications' | 'appearance';
 
 const TABS: { value: AccountTab; label: string; icon: LucideIcon }[] = [
   { value: 'profile', label: 'Hồ sơ', icon: UserRound },
   { value: 'security', label: 'Bảo mật và đăng nhập', icon: ShieldCheck },
+  { value: 'notifications', label: 'Thông báo', icon: Bell },
   { value: 'appearance', label: 'Giao diện', icon: Palette },
 ];
 
@@ -30,7 +32,7 @@ export default function AccountPage() {
   );
 }
 
-/** Trang tài khoản: /account?tab=profile|security|appearance */
+/** Trang tài khoản: /account?tab=profile|security|notifications|appearance */
 function Account() {
   const { user } = useAuth(); // layout đảm bảo đã có user
   const param = useSearchParams().get('tab');
@@ -70,6 +72,7 @@ function Account() {
         <div className="min-w-0">
           {tab === 'profile' && <ProfileSection />}
           {tab === 'security' && <SecuritySection />}
+          {tab === 'notifications' && <NotificationsSection />}
           {tab === 'appearance' && <AppearanceSection />}
         </div>
       </div>

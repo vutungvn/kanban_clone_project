@@ -8,6 +8,8 @@ export type NotificationType =
   | 'CARD_COMMENT'
   | 'COMMENT_MENTION'
   | 'CARD_DUE_CHANGED'
+  | 'CARD_DUE_SOON'
+  | 'CARD_OVERDUE'
   | 'CARD_MOVED'
   | 'BOARD_INVITED'
   | 'ROLE_CHANGED'
@@ -24,7 +26,7 @@ export interface Notification {
   /** null = chưa đọc */
   readAt: string | null;
   createdAt: string;
-  /** null nếu tài khoản đã bị xoá */
+  /** null nếu tài khoản đã bị xoá hoặc là thông báo của hệ thống (xem isSystemNotification) */
   actor: { id: string; name: string; avatarUrl: string | null } | null;
 }
 
@@ -57,7 +59,10 @@ export type Segment = { text: string; strong?: boolean };
 const str = (value: unknown) => (typeof value === 'string' ? value : '');
 const role = (value: unknown) => ROLE_LABEL[value as BoardRole] ?? str(value);
 
-/** Câu mô tả (sau tên người gây ra). Dùng cho cả danh sách thông báo và toast. */
+/** Thông báo của hệ thống (nhắc hạn chót) — không có người gây ra, câu mô tả đứng một mình. */
+export const isSystemNotification = (n: Notification) => n.type === 'CARD_DUE_SOON' || n.type === 'CARD_OVERDUE';
+
+/** Câu mô tả (sau tên người gây ra; thông báo hệ thống thì đứng một mình). Dùng cho cả danh sách thông báo và toast. */
 export function describeNotification(n: Notification): Segment[] {
   const d = n.data;
   const card = { text: str(d.cardTitle), strong: true };
@@ -75,6 +80,10 @@ export function describeNotification(n: Notification): Segment[] {
       return typeof d.dueDate === 'string'
         ? [{ text: 'đã đặt hạn chót của thẻ ' }, card, { text: ' là ' }, { text: formatDayTime(d.dueDate), strong: true }]
         : [{ text: 'đã gỡ hạn chót của thẻ ' }, card];
+    case 'CARD_DUE_SOON':
+      return [{ text: 'Thẻ ' }, card, { text: ' sắp hết hạn lúc ' }, { text: formatDayTime(str(d.dueDate)), strong: true }];
+    case 'CARD_OVERDUE':
+      return [{ text: 'Thẻ ' }, card, { text: ' đã quá hạn từ ' }, { text: formatDayTime(str(d.dueDate)), strong: true }];
     case 'CARD_MOVED':
       if (typeof d.fromBoard === 'string') {
         return [{ text: 'đã chuyển thẻ ' }, card, { text: ' từ bảng ' }, { text: d.fromBoard, strong: true }, { text: ' sang bảng ' }, board];
@@ -102,11 +111,13 @@ export function describeNotification(n: Notification): Segment[] {
 
 export const actorName = (n: Notification) => n.actor?.name ?? 'Người dùng đã bị xoá';
 
-/** "An đã giao cho bạn thẻ Thiết kế" — dùng cho toast. */
-export const notificationText = (n: Notification) =>
-  `${actorName(n)} ${describeNotification(n)
+/** "An đã giao cho bạn thẻ Thiết kế" / "Thẻ Thiết kế sắp hết hạn lúc ..." — dùng cho toast. */
+export function notificationText(n: Notification) {
+  const text = describeNotification(n)
     .map((s) => s.text)
-    .join('')}`;
+    .join('');
+  return isSystemNotification(n) ? text : `${actorName(n)} ${text}`;
+}
 
 /** Trang cần mở khi bấm vào thông báo. */
 export function notificationHref(n: Notification) {

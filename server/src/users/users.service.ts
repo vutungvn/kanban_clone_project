@@ -14,13 +14,14 @@ const publicUserSelect = {
   name: true,
   avatarUrl: true,
   emailVerifiedAt: true,
+  emailDueReminders: true,
   createdAt: true,
 } satisfies Prisma.UserSelect;
 
 export type PublicUser = Prisma.UserGetPayload<{ select: typeof publicUserSelect }>;
 
-export function toPublicUser({ id, email, name, avatarUrl, emailVerifiedAt, createdAt }: User): PublicUser {
-  return { id, email, name, avatarUrl, emailVerifiedAt, createdAt };
+export function toPublicUser({ id, email, name, avatarUrl, emailVerifiedAt, emailDueReminders, createdAt }: User): PublicUser {
+  return { id, email, name, avatarUrl, emailVerifiedAt, emailDueReminders, createdAt };
 }
 
 @Injectable()
@@ -54,6 +55,13 @@ export class UsersService {
   async updateName(userId: string, name: string) {
     const user = await this.prisma.user.update({ where: { id: userId }, data: { name }, select: publicUserSelect });
     await this.profileChanged(userId);
+    return user;
+  }
+
+  /** Cài đặt thông báo — các tab khác của chính mình tải lại thông tin tài khoản. */
+  async updateNotificationSettings(userId: string, data: { emailDueReminders: boolean }) {
+    const user = await this.prisma.user.update({ where: { id: userId }, data, select: publicUserSelect });
+    this.realtime.toUser(userId, 'account:updated', {}, true);
     return user;
   }
 

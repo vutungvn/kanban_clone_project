@@ -38,12 +38,18 @@ import { AVATAR_NOT_IMAGE, AVATAR_REQUIRED, UsersService } from '../users/users.
 import { AuthService, CANNOT_REVOKE_CURRENT, SAME_PASSWORD, SESSION_NOT_FOUND, WRONG_PASSWORD } from './auth.service';
 import type { AuthUser } from './auth.types';
 import { CurrentUser } from './decorators/current-user.decorator';
-import { ChangePasswordDto, RevokedCountResponseDto, SessionsResponseDto, UpdateProfileDto } from './dto/account.dto';
+import {
+  ChangePasswordDto,
+  RevokedCountResponseDto,
+  SessionsResponseDto,
+  UpdateNotificationSettingsDto,
+  UpdateProfileDto,
+} from './dto/account.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 const AVATAR_TOO_LARGE = `Ảnh đại diện tối đa ${MAX_AVATAR_SIZE / 1024 / 1024} MB`;
 
-/** Hồ sơ (tên, ảnh đại diện), mật khẩu và các phiên đăng nhập của chính mình. */
+/** Hồ sơ (tên, ảnh đại diện), cài đặt thông báo, mật khẩu và các phiên đăng nhập của chính mình. */
 @ApiTags('Account')
 @ApiAuth()
 @UseGuards(JwtAuthGuard)
@@ -60,6 +66,14 @@ export class AccountController {
   @Patch('profile')
   async updateProfile(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto) {
     return { user: await this.users.updateName(user.id, dto.name) };
+  }
+
+  @ApiOperation({ summary: 'Cài đặt thông báo', description: 'Bật / tắt email nhắc hạn chót. Thông báo trong app không tắt được.' })
+  @ApiOkResponse({ type: UserResponseDto })
+  @ApiValidationError(['emailDueReminders phải là true hoặc false'])
+  @Patch('notifications')
+  async updateNotificationSettings(@CurrentUser() user: AuthUser, @Body() dto: UpdateNotificationSettingsDto) {
+    return { user: await this.users.updateNotificationSettings(user.id, dto) };
   }
 
   @ApiOperation({

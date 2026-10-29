@@ -1,0 +1,33 @@
+name: Nhắc hạn chót
+
+# Render free cho server ngủ sau ~15 phút không có request → interval trong process không tự chạy.
+# Workflow này đánh thức server và quét 1 lượt mỗi 15 phút (GitHub có thể trễ vài phút so với lịch).
+# Chạy trùng với interval trong process vẫn an toàn: mỗi mốc chỉ gửi 1 lần (xem DueRemindersService).
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  # Chạy tay: tab Actions → Nhắc hạn chót → Run workflow
+  workflow_dispatch:
+
+concurrency:
+  group: due-reminders
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: Quét nhắc hạn chót
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Gọi endpoint nội bộ
+        env:
+          API_URL: https://kanban-api-vptx.onrender.com
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Chưa đặt secret CRON_SECRET (Settings → Secrets and variables → Actions)"; exit 1
+          fi
+          # Server đang ngủ cần ~30-60 giây để thức dậy → retry vài lần
+          curl -fsS --max-time 300 --retry 5 --retry-delay 15 --retry-all-errors \
+            -X POST "$API_URL/api/internal/due-reminders/run" \
+            -H "x-cron-secret: $CRON_SECRET"

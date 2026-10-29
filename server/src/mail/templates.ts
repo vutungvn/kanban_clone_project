@@ -1,7 +1,16 @@
 import type { MailMessage } from './mail.service';
 
-const escapeHtml = (value: string) =>
-  value.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
+const HTML_ENTITIES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (ch) => HTML_ENTITIES[ch]);
+
+/** HTML đơn giản → text thuần: link thành "chữ (url)", <br> xuống dòng, bỏ thẻ, giải mã ký tự đã escape. */
+const toText = (html: string) =>
+  html
+    .replace(/<a href="([^"]*)"[^>]*>(.*?)<\/a>/g, '$2 ($1)')
+    .replace(/<br\s*\/?>/g, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&(amp|lt|gt|quot|#39);/g, (entity) => Object.keys(HTML_ENTITIES).find((ch) => HTML_ENTITIES[ch] === entity)!);
 
 /**
  * Khung email chung: tiêu đề, các đoạn văn, 1 nút bấm + link dự phòng, ghi chú cuối.
@@ -28,13 +37,12 @@ function layout(input: { to: string; subject: string; heading: string; paragraph
   </table>
 </body></html>`;
   const text = [
-    input.heading,
+    toText(input.heading),
     '',
-    ...input.paragraphs.map((p) => p.replace(/<[^>]+>/g, '')),
-    '',
+    ...input.paragraphs.flatMap((p) => [toText(p), '']),
     `${input.button}: ${input.url}`,
     '',
-    input.note,
+    toText(input.note),
   ].join('\n');
   return { to: input.to, subject: input.subject, html, text };
 }
@@ -63,5 +71,47 @@ export function resetPasswordMessage(to: string, name: string, url: string) {
     button: 'Đặt lại mật khẩu',
     url,
     note: 'Liên kết có hiệu lực trong 1 giờ và chỉ dùng được 1 lần. Nếu bạn không yêu cầu, hãy bỏ qua email — mật khẩu vẫn giữ nguyên.',
+  });
+}
+
+export interface DueReminderItem {
+  kind: 'soon' | 'overdue';
+  cardTitle: string;
+  boardTitle: string;
+  /** Hạn chót đã định dạng theo múi giờ của app, vd "31/10/2026 10:00" */
+  due: string;
+  /** Link mở thẻ */
+  url: string;
+}
+
+const SUBJECT_TITLE_LENGTH = 60;
+
+/** Nhắc hạn chót: gộp mọi thẻ của 1 người trong 1 lượt quét vào 1 email (quá hạn trước). */
+export function dueReminderMessage(input: { to: string; name: string; items: DueReminderItem[]; homeUrl: string; settingsUrl: string }) {
+  const overdue = input.items.filter((i) => i.kind === 'overdue');
+  const soon = input.items.filter((i) => i.kind === 'soon');
+  const [first] = input.items;
+  const title = first.cardTitle.length > SUBJECT_TITLE_LENGTH ? `${first.cardTitle.slice(0, SUBJECT_TITLE_LENGTH - 1)}…` : first.cardTitle;
+  const subject =
+    input.items.length === 1
+      ? `Thẻ "${title}" ${first.kind === 'overdue' ? 'đã quá hạn' : 'sắp hết hạn'}`
+      : `Bạn có ${[overdue.length && `${overdue.length} thẻ quá hạn`, soon.length && `${soon.length} thẻ sắp hết hạn`].filter(Boolean).join(' và ')}`;
+  const line = (i: DueReminderItem) =>
+    `<a href="${escapeHtml(i.url)}" style="color:#0c66e4;font-weight:600">${escapeHtml(i.cardTitle)}</a> · ${escapeHtml(i.boardTitle)}<br>` +
+    (i.kind === 'overdue'
+      ? `<span style="color:#ba1a1a">Đã quá hạn từ ${i.due}</span>`
+      : `<span style="color:#7f5f01">Hết hạn lúc ${i.due}</span>`);
+  return layout({
+    to: input.to,
+    subject,
+    heading: `Chào ${escapeHtml(input.name)},`,
+    paragraphs: [
+      input.items.length === 1 ? 'Nhắc hạn chót thẻ đang được giao cho bạn:' : 'Nhắc hạn chót các thẻ đang được giao cho bạn:',
+      ...overdue.map(line),
+      ...soon.map(line),
+    ],
+    button: 'Xem thẻ của tôi',
+    url: input.homeUrl,
+    note: `Bạn nhận email này vì đang được giao các thẻ trên. Tắt email nhắc hạn tại <a href="${escapeHtml(input.settingsUrl)}" style="color:#727786">Tài khoản → Thông báo</a> (thông báo trong app vẫn giữ).`,
   });
 }
