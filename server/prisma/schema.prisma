@@ -151,7 +151,7 @@ model List {
 }
 
 model Card {
-  id                String         @id @default(cuid())
+  id                String                   @id @default(cuid())
   listId            String
   title             String
   description       String?
@@ -160,7 +160,7 @@ model Card {
   startDate         DateTime?
   dueDate           DateTime?
   // Đánh dấu đã hoàn thành hạn chót — xoá hạn chót thì tự về false
-  dueComplete       Boolean        @default(false)
+  dueComplete       Boolean                  @default(false)
   // Lúc đã nhắc "sắp hết hạn" / "quá hạn" (xem DueRemindersService) — đổi hạn chót thì về null để nhắc lại
   dueSoonNotifiedAt DateTime?
   overdueNotifiedAt DateTime?
@@ -168,21 +168,26 @@ model Card {
   archivedAt        DateTime?
   // Ảnh bìa: 1 màu (key trong COVER_COLORS) HOẶC 1 ảnh đính kèm của chính thẻ — không có cả hai
   coverColor        String?
-  coverAttachmentId String?        @unique
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  list              List           @relation(fields: [listId], references: [id], onDelete: Cascade)
+  coverAttachmentId String?                  @unique
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  list              List                     @relation(fields: [listId], references: [id], onDelete: Cascade)
   labels            CardLabel[]
   members           CardMember[]
   checklists        Checklist[]
   activities        Activity[]
   notifications     Notification[]
-  attachments       Attachment[]   @relation("CardAttachments")
+  attachments       Attachment[]             @relation("CardAttachments")
   // Xoá ảnh đang làm bìa → thẻ hết ảnh bìa
-  coverAttachment   Attachment?    @relation("CardCover", fields: [coverAttachmentId], references: [id], onDelete: SetNull)
+  coverAttachment   Attachment?              @relation("CardCover", fields: [coverAttachmentId], references: [id], onDelete: SetNull)
+  // Full-text search: cột generated (Postgres tự tính từ tiêu đề — trọng số A — và mô tả — B), bỏ dấu.
+  // Xem migration global_search; truy vấn bằng SQL thô trong SearchService.
+  // dbgenerated = đúng biểu thức Postgres trả về khi đọc cột, để `prisma migrate diff` không báo lệch.
+  searchVector      Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('simple'::regconfig, f_unaccent(COALESCE(title, ''::text))), 'A'::\"char\") || setweight(to_tsvector('simple'::regconfig, f_unaccent(COALESCE(description, ''::text))), 'B'::\"char\"))"))
 
   @@index([listId, position])
   @@index([dueDate])
+  @@index([searchVector], type: Gin)
   @@map("cards")
 }
 
@@ -304,23 +309,26 @@ enum ActivityType {
 // Lịch sử hoạt động của thẻ; bình luận cũng là 1 hoạt động (type COMMENT, nội dung ở `text`).
 // `data` chụp lại tên nhãn / danh sách / thành viên... tại thời điểm đó — đổi tên hay xoá sau này không làm sai lịch sử.
 model Activity {
-  id        String       @id @default(cuid())
-  boardId   String
-  cardId    String
+  id           String                   @id @default(cuid())
+  boardId      String
+  cardId       String
   // Người thực hiện; null nếu tài khoản đã bị xoá
-  userId    String?
-  type      ActivityType
-  data      Json         @default("{}")
-  text      String?
+  userId       String?
+  type         ActivityType
+  data         Json                     @default("{}")
+  text         String?
   // Lần sửa bình luận gần nhất
-  editedAt  DateTime?
-  createdAt DateTime     @default(now())
-  board     Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  card      Card         @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  user      User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  editedAt     DateTime?
+  createdAt    DateTime                 @default(now())
+  board        Board                    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  card         Card                     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user         User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // Full-text search trên `text` (chỉ bình luận có text) — cột generated, xem Card.searchVector
+  searchVector Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, f_unaccent(COALESCE(text, ''::text)))"))
 
   @@index([cardId, createdAt])
   @@index([boardId, createdAt])
+  @@index([searchVector], type: Gin)
   @@map("activities")
 }
 

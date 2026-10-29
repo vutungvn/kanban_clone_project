@@ -11,6 +11,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { RemindersModule } from './reminders/reminders.module';
+import { SearchModule } from './search/search.module';
 import { StorageModule } from './storage/storage.module';
 import { UsersModule } from './users/users.module';
 
@@ -27,6 +28,7 @@ import { UsersModule } from './users/users.module';
     BoardsModule,
     NotificationsModule,
     RemindersModule,
+    SearchModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: HttpThrottlerGuard }],
