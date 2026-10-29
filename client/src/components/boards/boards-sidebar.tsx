@@ -27,7 +27,7 @@ const MAIN_NAV: NavItem[] = [
   { icon: LayoutDashboard, label: 'Bảng', href: '/boards' },
   { icon: House, label: 'Trang chủ', href: '/home' },
   { icon: Activity, label: 'Hoạt động', href: '/activity' },
-  { icon: LayoutTemplate, label: 'Mẫu' },
+  { icon: LayoutTemplate, label: 'Mẫu', href: '/templates' },
 ];
 
 const WORKSPACE_NAV: NavItem[] = [

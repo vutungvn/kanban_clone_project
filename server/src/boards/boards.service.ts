@@ -15,7 +15,7 @@ type MemberWithUser = BoardMember & { user: Prisma.UserGetPayload<{ select: type
 /** BoardMember + user → dạng trả về cho client (BoardMemberDto). */
 export const toMember = ({ user, role }: MemberWithUser) => ({ ...user, role });
 
-const withMembers = {
+export const withMembers = {
   members: {
     include: { user: { select: memberUserSelect } },
     orderBy: { joinedAt: 'asc' },
@@ -28,10 +28,10 @@ const withListsAndCards = {
   lists: { where: notArchived, orderBy: byPosition, include: listInclude },
 } as const satisfies Prisma.BoardInclude;
 
-type BoardWithMembers = Prisma.BoardGetPayload<{ include: typeof withMembers }>;
+export type BoardWithMembers = Prisma.BoardGetPayload<{ include: typeof withMembers }>;
 
 /** Ghép board + quan hệ của user hiện tại (sao, vai trò, lần xem) thành dạng trả về cho client. */
-function toSummary(board: BoardWithMembers, me: BoardMember) {
+export function toSummary(board: BoardWithMembers, me: BoardMember) {
   return {
     id: board.id,
     title: board.title,

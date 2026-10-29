@@ -12,6 +12,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { SearchModule } from './search/search.module';
+import { TemplatesModule } from './templates/templates.module';
 import { StorageModule } from './storage/storage.module';
 import { UsersModule } from './users/users.module';
 
@@ -29,6 +30,7 @@ import { UsersModule } from './users/users.module';
     NotificationsModule,
     RemindersModule,
     SearchModule,
+    TemplatesModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: HttpThrottlerGuard }],
