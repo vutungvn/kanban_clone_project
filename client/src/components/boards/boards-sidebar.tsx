@@ -35,8 +35,7 @@ const MAIN_NAV: NavItem[] = [
 
 const workspaceNav = (workspace: Workspace): NavItem[] => [
   { icon: SquareKanban, label: 'Bảng', href: `/w/${workspace.id}` },
-  // Giai đoạn 2: trang Thành viên
-  { icon: Users, label: 'Thành viên' },
+  { icon: Users, label: 'Thành viên', href: `/w/${workspace.id}/members` },
   { icon: Settings, label: 'Cài đặt', href: `/w/${workspace.id}/settings` },
 ];
 

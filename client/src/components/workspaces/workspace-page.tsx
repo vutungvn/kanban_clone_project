@@ -42,6 +42,9 @@ export function WorkspacePage({ workspaceId, children }: { workspaceId: string; 
                   <Tab href={`/w/${workspace.id}`} active={pathname === `/w/${workspace.id}`} icon={<SquareKanban size={16} />}>
                     Bảng
                   </Tab>
+                  <Tab href={`/w/${workspace.id}/members`} active={pathname === `/w/${workspace.id}/members`} icon={<Users size={16} />}>
+                    Thành viên
+                  </Tab>
                   <Tab href={`/w/${workspace.id}/settings`} active={pathname === `/w/${workspace.id}/settings`} icon={<Settings size={16} />}>
                     Cài đặt
                   </Tab>

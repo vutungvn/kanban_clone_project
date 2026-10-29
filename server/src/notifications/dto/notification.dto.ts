@@ -61,7 +61,8 @@ export class NotificationDto {
     description:
       'Dữ liệu chụp lại lúc tạo: luôn có `boardTitle`; thông báo về thẻ có `cardTitle`; ' +
       'CARD_COMMENT / COMMENT_MENTION `{ text }` (trích đoạn), CARD_DUE_CHANGED / CARD_DUE_SOON / CARD_OVERDUE `{ dueDate }`, ' +
-      'CARD_MOVED `{ fromList, toList }`, BOARD_INVITED / ROLE_CHANGED / JOIN_APPROVED `{ role }`',
+      'CARD_MOVED `{ fromList, toList }`, BOARD_INVITED / ROLE_CHANGED / JOIN_APPROVED `{ role }`; ' +
+      'WORKSPACE_INVITED / WORKSPACE_ROLE_CHANGED / WORKSPACE_REMOVED: không gắn bảng, `{ workspaceId, workspaceName, role? }`',
   })
   data: Record<string, unknown>;
 

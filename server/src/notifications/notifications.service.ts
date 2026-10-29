@@ -16,7 +16,8 @@ export interface NotifyInput {
   userId: string;
   actorId: string;
   type: NotificationType;
-  boardId: string;
+  /** Thông báo về không gian làm việc không gắn bảng */
+  boardId?: string;
   cardId?: string;
   data: Prisma.InputJsonObject;
 }

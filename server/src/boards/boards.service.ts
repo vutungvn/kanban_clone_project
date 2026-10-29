@@ -96,7 +96,19 @@ export class BoardsService {
     });
     const board = await this.prisma.board.findUnique({ where: { id: boardId }, include: withListsAndCards });
     if (!board) throw new NotFoundException(BOARD_NOT_FOUND);
-    return { ...toSummary(board, me), updatedAt: board.updatedAt, labels: board.labels, lists: board.lists.map(toList) };
+    // Khách = thành viên bảng không thuộc không gian chứa bảng
+    const inWorkspace = await this.prisma.workspaceMember.findMany({
+      where: { workspaceId: board.workspaceId, userId: { in: board.members.map((m) => m.userId) } },
+      select: { userId: true },
+    });
+    const workspaceMemberIds = new Set(inWorkspace.map((m) => m.userId));
+    return {
+      ...toSummary(board, me),
+      members: board.members.map((m) => ({ ...toMember(m), guest: !workspaceMemberIds.has(m.userId) })),
+      updatedAt: board.updatedAt,
+      labels: board.labels,
+      lists: board.lists.map(toList),
+    };
   }
 
   async update(boardId: string, userId: string, dto: UpdateBoardDto) {

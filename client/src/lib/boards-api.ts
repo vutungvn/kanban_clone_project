@@ -12,6 +12,8 @@ export interface BoardMember {
   email: string;
   avatarUrl: string | null;
   role: BoardRole;
+  /** Khách: không thuộc không gian chứa bảng (chỉ có ở chi tiết bảng) */
+  guest?: boolean;
 }
 
 export interface BoardSummary {

@@ -95,7 +95,15 @@ export class BoardSummaryDto {
   members: BoardMemberDto[];
 }
 
-export class BoardDetailDto extends BoardSummaryDto {
+export class BoardDetailMemberDto extends BoardMemberDto {
+  @ApiProperty({ example: false, description: 'Khách: không thuộc không gian chứa bảng' })
+  guest: boolean;
+}
+
+export class BoardDetailDto extends OmitType(BoardSummaryDto, ['members'] as const) {
+  @ApiProperty({ type: [BoardDetailMemberDto] })
+  members: BoardDetailMemberDto[];
+
   @ApiProperty({ type: String, format: 'date-time', example: '2026-01-15T08:30:00.000Z' })
   updatedAt: Date;
 

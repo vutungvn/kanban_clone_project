@@ -14,6 +14,23 @@ export interface Workspace {
   joinedAt: string;
 }
 
+interface Person {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+}
+
+export interface WorkspaceMember extends Person {
+  role: WorkspaceRole;
+  joinedAt: string;
+}
+
+/** Khách: thành viên bảng của không gian nhưng không thuộc không gian (chỉ tính bảng mình cũng tham gia) */
+export interface WorkspaceGuest extends Person {
+  boards: { id: string; title: string }[];
+}
+
 export interface WorkspaceInput {
   name: string;
   description?: string;
@@ -35,4 +52,18 @@ export const workspacesApi = {
   create: (input: WorkspaceInput) => api<{ workspace: Workspace }>('/workspaces', send('POST', input)).then((r) => r.workspace),
   update: (id: string, input: Partial<WorkspaceInput>) =>
     api<{ workspace: Workspace }>(`/workspaces/${encodeURIComponent(id)}`, send('PATCH', input)).then((r) => r.workspace),
+};
+
+const membersPath = (workspaceId: string, userId?: string) =>
+  `/workspaces/${encodeURIComponent(workspaceId)}/members${userId ? `/${encodeURIComponent(userId)}` : ''}`;
+
+export const workspaceMembersApi = {
+  list: (workspaceId: string) => api<{ members: WorkspaceMember[]; guests: WorkspaceGuest[] }>(membersPath(workspaceId)),
+  invite: (workspaceId: string, email: string, role: WorkspaceRole) =>
+    api<{ member: WorkspaceMember }>(membersPath(workspaceId), send('POST', { email, role })).then((r) => r.member),
+  updateRole: (workspaceId: string, userId: string, role: WorkspaceRole) =>
+    api<{ member: WorkspaceMember }>(membersPath(workspaceId, userId), send('PATCH', { role })).then((r) => r.member),
+  /** userId = chính mình → rời không gian. `fromBoards`: gỡ cả khỏi mọi bảng của không gian (chỉ khi xoá người khác) */
+  remove: (workspaceId: string, userId: string, fromBoards = false) =>
+    api<{ removedFromBoards: number }>(`${membersPath(workspaceId, userId)}?fromBoards=${fromBoards}`, send('DELETE')),
 };

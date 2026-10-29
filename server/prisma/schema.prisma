@@ -389,6 +389,10 @@ enum NotificationType {
   ROLE_CHANGED
   JOIN_REQUESTED
   JOIN_APPROVED
+  // Không gian làm việc — không gắn bảng (boardId null); data: { workspaceId, workspaceName, role? }
+  WORKSPACE_INVITED
+  WORKSPACE_ROLE_CHANGED
+  WORKSPACE_REMOVED
 }
 
 // Thông báo gửi tới 1 người. `data` chụp lại tên bảng / thẻ / trích đoạn bình luận... lúc tạo.

@@ -222,6 +222,14 @@ function MemberRow({
         <p className="truncate text-sm font-semibold">
           {member.name}
           {isMe && <span className="ml-1 text-xs font-normal text-ink-subtle">(bạn)</span>}
+          {member.guest && (
+            <span
+              title="Không thuộc không gian chứa bảng này"
+              className="ml-1.5 rounded bg-surface-mid px-1.5 py-px align-middle text-[10px] font-medium text-ink-subtle"
+            >
+              Khách
+            </span>
+          )}
         </p>
         <p className="truncate text-xs text-ink-subtle">{member.email}</p>
       </div>
