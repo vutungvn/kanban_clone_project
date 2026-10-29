@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  Award,
   ChevronDown,
   House,
   LayoutDashboard,
@@ -16,9 +15,12 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { givenName } from '@/components/avatar';
 import { ComingSoonBadge } from '@/components/ui';
+import { CreateWorkspaceModal } from '@/components/workspaces/create-workspace-modal';
+import { WorkspaceLogo } from '@/components/workspaces/workspace-logo';
 import { cn } from '@/lib/cn';
+import type { Workspace } from '@/lib/workspaces-api';
+import { useWorkspacesState } from '@/lib/workspaces-store';
 
 type NavItem = { icon: LucideIcon; label: string; href?: string };
 
@@ -30,18 +32,26 @@ const MAIN_NAV: NavItem[] = [
   { icon: LayoutTemplate, label: 'Mẫu', href: '/templates' },
 ];
 
-const WORKSPACE_NAV: NavItem[] = [
-  { icon: SquareKanban, label: 'Bảng công việc chính', href: '/boards' },
-  { icon: Users, label: 'Thành viên' },
-  { icon: Settings, label: 'Cài đặt' },
+const workspaceNav = (workspace: Workspace): NavItem[] => [
+  { icon: SquareKanban, label: 'Bảng', href: `/w/${workspace.id}` },
+  { icon: Users, label: 'Thành viên', href: `/w/${workspace.id}/members` },
+  { icon: Settings, label: 'Cài đặt', href: `/w/${workspace.id}/settings` },
 ];
 
-export function BoardsSidebar({ userName }: { userName: string }) {
-  const [workspaceOpen, setWorkspaceOpen] = useState(true);
-  const name = givenName(userName);
+/** Không gian đang xem theo đường dẫn /w/:id/... */
+const workspaceIdOf = (pathname: string) => pathname.match(/^\/w\/([^/]+)/)?.[1] ?? null;
+
+export function BoardsSidebar() {
+  const pathname = usePathname();
+  const { workspaces, status } = useWorkspacesState();
+  const [creating, setCreating] = useState(false);
+  // Mặc định mở không gian đang xem (hoặc không gian đầu tiên); người dùng tự đóng / mở các mục khác
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const current = workspaceIdOf(pathname) ?? workspaces[0]?.id;
+  const isOpen = (id: string) => toggled[id] ?? id === current;
 
   return (
-    <aside className="sticky top-12 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col justify-between overflow-y-auto bg-card px-2 py-3 shadow-[0_1px_8px_rgba(0,0,0,0.04)] lg:flex">
+    <aside className="sticky top-12 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col overflow-y-auto bg-card px-2 py-3 shadow-[0_1px_8px_rgba(0,0,0,0.04)] lg:flex">
       <div>
         <nav aria-label="Điều hướng chính" className="flex flex-col gap-1">
           {MAIN_NAV.map((item) => (
@@ -55,58 +65,57 @@ export function BoardsSidebar({ userName }: { userName: string }) {
           <p className="text-[11px] font-semibold tracking-wider text-ink-subtle uppercase">Không gian làm việc</p>
           <button
             type="button"
-            disabled
-            aria-label="Tạo không gian làm việc (sắp có)"
-            title="Tạo không gian làm việc — Sắp có"
-            className="cursor-not-allowed rounded p-0.5 text-ink-subtle/60"
+            onClick={() => setCreating(true)}
+            aria-label="Tạo không gian làm việc"
+            title="Tạo không gian làm việc"
+            className="rounded p-0.5 text-ink-subtle transition-colors hover:bg-surface-high hover:text-ink"
           >
             <Plus size={16} />
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setWorkspaceOpen((v) => !v)}
-          aria-expanded={workspaceOpen}
-          aria-controls="workspace-nav"
-          className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-ink transition-colors hover:bg-surface-high"
-        >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-success text-[11px] font-bold text-white">
-            {name.charAt(0).toUpperCase()}
-          </span>
-          <span className="flex-1 truncate text-left font-medium">Không gian của {name}</span>
-          <ChevronDown
-            size={18}
-            className={cn('text-ink-subtle transition-transform', !workspaceOpen && '-rotate-90')}
-          />
-        </button>
-
-        {workspaceOpen && (
-          <nav id="workspace-nav" aria-label="Không gian làm việc" className="mt-1 flex flex-col gap-0.5 pl-6">
-            {WORKSPACE_NAV.map((item) => (
-              <SidebarLink key={item.label} item={item} size="sm" />
-            ))}
-          </nav>
+        {status !== 'ready' && !workspaces.length && (
+          <div aria-hidden className="mx-3 mt-1 h-8 animate-pulse rounded bg-surface-mid" />
         )}
+        {workspaces.map((workspace) => {
+          const open = isOpen(workspace.id);
+          const navId = `workspace-nav-${workspace.id}`;
+          return (
+            <div key={workspace.id} className="mt-0.5">
+              <button
+                type="button"
+                onClick={() => setToggled((t) => ({ ...t, [workspace.id]: !open }))}
+                aria-expanded={open}
+                aria-controls={navId}
+                className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-ink transition-colors hover:bg-surface-high"
+              >
+                <WorkspaceLogo workspace={workspace} />
+                <span className="flex-1 truncate text-left font-medium" title={workspace.name}>
+                  {workspace.name}
+                </span>
+                <ChevronDown size={18} className={cn('shrink-0 text-ink-subtle transition-transform', !open && '-rotate-90')} />
+              </button>
+              {open && (
+                <nav id={navId} aria-label={workspace.name} className="mt-0.5 mb-1 flex flex-col gap-0.5 pl-6">
+                  {workspaceNav(workspace).map((item) => (
+                    <SidebarLink key={item.label} item={item} size="sm" />
+                  ))}
+                </nav>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      <div className="mt-4 flex items-center gap-2 rounded-lg bg-surface-low p-2.5">
-        <Award size={22} className="shrink-0 text-brand" />
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-ink">Nâng cấp Kanban</p>
-          <p className="text-xs text-ink-subtle">Mở khóa bảng vô hạn</p>
-        </div>
-        <ComingSoonBadge />
-      </div>
+      {creating && <CreateWorkspaceModal onClose={() => setCreating(false)} />}
     </aside>
   );
 }
 
 function SidebarLink({ item, size }: { item: NavItem; size: 'lg' | 'sm' }) {
   const { icon: Icon, label, href } = item;
-  // Mục phụ trong không gian làm việc không sáng (trùng đường dẫn /boards với mục "Bảng")
   const pathname = usePathname();
-  const active = size === 'lg' && pathname === href;
+  const active = pathname === href;
   const base = cn(
     'flex items-center rounded transition-colors',
     size === 'lg' ? 'gap-2 px-3 py-2 text-sm' : 'gap-2 px-2 py-1.5 text-xs',

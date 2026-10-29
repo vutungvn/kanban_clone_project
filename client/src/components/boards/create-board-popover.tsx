@@ -10,21 +10,27 @@ import { errorMessage } from '@/lib/api';
 import { BOARD_BACKGROUNDS, type BoardBackground } from '@/lib/board-backgrounds';
 import { boardsStore, type BoardSummary } from '@/lib/boards-store';
 import { cn } from '@/lib/cn';
+import { useWorkspaces } from '@/lib/workspaces-store';
+import { defaultWorkspaceId, VisibilitySelect, WorkspaceSelect } from '@/components/workspaces/workspace-select';
+import type { BoardVisibility } from '@/lib/boards-api';
 import { BackgroundPicker } from './background-picker';
 
 export function CreateBoardPopover({
   anchor,
   onClose,
   onCreated,
+  workspaceId,
 }: {
   anchor: HTMLElement | null;
   onClose: () => void;
   onCreated?: (board: BoardSummary) => void;
+  /** Không gian chọn sẵn (vd đang ở trang của không gian đó) */
+  workspaceId?: string;
 }) {
   return (
     <Popover anchor={anchor} onClose={onClose} label="Tạo bảng">
       {/* Form mount lại mỗi lần mở → tự reset state */}
-      <CreateBoardForm onClose={onClose} onCreated={onCreated} />
+      <CreateBoardForm onClose={onClose} onCreated={onCreated} preferredWorkspaceId={workspaceId} />
     </Popover>
   );
 }
@@ -32,11 +38,18 @@ export function CreateBoardPopover({
 function CreateBoardForm({
   onClose,
   onCreated,
+  preferredWorkspaceId,
 }: {
   onClose: () => void;
   onCreated?: (board: BoardSummary) => void;
+  preferredWorkspaceId?: string;
 }) {
   const router = useRouter();
+  const workspaces = useWorkspaces();
+  // Danh sách không gian có thể tải xong sau khi mở form → chưa chọn thì lấy mặc định theo danh sách hiện có
+  const [pickedWorkspace, setPickedWorkspace] = useState<string | null>(null);
+  const workspaceId = pickedWorkspace ?? defaultWorkspaceId(workspaces, preferredWorkspaceId);
+  const [visibility, setVisibility] = useState<BoardVisibility>('WORKSPACE');
   const [title, setTitle] = useState('');
   const [background, setBackground] = useState<BoardBackground>('blue');
   const [pending, setPending] = useState(false);
@@ -49,7 +62,7 @@ function CreateBoardForm({
     setPending(true);
     setError(null);
     try {
-      const board = await boardsStore.create({ title: trimmed, background });
+      const board = await boardsStore.create({ title: trimmed, background, workspaceId: workspaceId || undefined, visibility });
       onCreated?.(board);
       onClose();
       // Giống Trello: tạo xong mở luôn bảng mới
@@ -82,6 +95,13 @@ function CreateBoardForm({
         className="h-9 w-full rounded bg-card px-3 text-sm text-ink shadow-[0_0_0_1px_var(--color-hairline)] transition-shadow outline-none focus:shadow-[0_0_0_2px_var(--color-brand)]"
       />
       {!trimmed && <p className="mt-1.5 text-xs text-ink-subtle">👋 Tiêu đề bảng là bắt buộc</p>}
+
+      <div className="mt-3">
+        <WorkspaceSelect id="board-workspace" workspaces={workspaces} value={workspaceId} onChange={setPickedWorkspace} />
+      </div>
+      <div className="mt-3">
+        <VisibilitySelect id="board-visibility" value={visibility} onChange={setVisibility} />
+      </div>
 
       {error && (
         <div className="mt-2">

@@ -1,8 +1,9 @@
-import { ApiProperty, OmitType, PartialType } from '@nestjs/swagger';
-import { BoardRole } from '@prisma/client';
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import { BoardRole, BoardVisibility } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsIn, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { trimString } from '../../common/transforms';
+import { WorkspaceRefDto } from '../../workspaces/dto/workspace.dto';
 import { BOARD_BACKGROUNDS, MAX_BOARD_TITLE, type BoardBackground } from '../boards.constants';
 import { CardWithListDto } from './card.dto';
 import { LabelDto } from './label.dto';
@@ -21,9 +22,26 @@ export class CreateBoardDto {
   @ApiProperty({ enum: BOARD_BACKGROUNDS, example: 'blue', description: 'Key phông nền dựng sẵn' })
   @IsIn(BOARD_BACKGROUNDS, { message: `Phông nền phải là một trong: ${BOARD_BACKGROUNDS.join(', ')}` })
   background: BoardBackground;
+
+  @ApiPropertyOptional({
+    example: 'cmgws0000000vq8h3b1c2d4e',
+    description: 'Không gian chứa bảng (phải là thành viên). Bỏ trống → không gian mình tham gia sớm nhất',
+  })
+  @IsOptional()
+  @IsString()
+  workspaceId?: string;
+
+  @ApiPropertyOptional({
+    enum: BoardVisibility,
+    default: BoardVisibility.WORKSPACE,
+    description: 'PRIVATE: chỉ thành viên bảng thấy. WORKSPACE: thành viên không gian thấy và tự tham gia được',
+  })
+  @IsOptional()
+  @IsEnum(BoardVisibility, { message: 'Chế độ hiển thị phải là PRIVATE hoặc WORKSPACE' })
+  visibility?: BoardVisibility;
 }
 
-/** Mọi trường đều tuỳ chọn — chỉ gửi trường cần đổi. */
+/** Mọi trường đều tuỳ chọn — chỉ gửi trường cần đổi. `workspaceId` khác hiện tại = chuyển bảng sang không gian đó. */
 export class UpdateBoardDto extends PartialType(CreateBoardDto) {}
 
 export class StarBoardDto {
@@ -79,11 +97,25 @@ export class BoardSummaryDto {
   })
   lastViewedAt: Date | null;
 
+  @ApiProperty({ enum: BoardVisibility, example: BoardVisibility.WORKSPACE })
+  visibility: BoardVisibility;
+
+  @ApiProperty({ type: WorkspaceRefDto, description: 'Không gian chứa bảng (có thể là không gian mình không thuộc — khi đó mình là khách)' })
+  workspace: WorkspaceRefDto;
+
   @ApiProperty({ type: [BoardMemberDto] })
   members: BoardMemberDto[];
 }
 
-export class BoardDetailDto extends BoardSummaryDto {
+export class BoardDetailMemberDto extends BoardMemberDto {
+  @ApiProperty({ example: false, description: 'Khách: không thuộc không gian chứa bảng' })
+  guest: boolean;
+}
+
+export class BoardDetailDto extends OmitType(BoardSummaryDto, ['members'] as const) {
+  @ApiProperty({ type: [BoardDetailMemberDto] })
+  members: BoardDetailMemberDto[];
+
   @ApiProperty({ type: String, format: 'date-time', example: '2026-01-15T08:30:00.000Z' })
   updatedAt: Date;
 
@@ -125,4 +157,29 @@ export class BoardDetailResponseDto {
 export class StarResponseDto {
   @ApiProperty({ example: true })
   starred: boolean;
+}
+
+export class BoardPreviewDto {
+  @ApiProperty({ example: 'cmgboard0000vq8h3b1c2d4e' })
+  id: string;
+
+  @ApiProperty({ example: 'Chiến dịch Q4' })
+  title: string;
+
+  @ApiProperty({ enum: BOARD_BACKGROUNDS, example: 'green' })
+  background: string;
+
+  @ApiProperty({ type: WorkspaceRefDto })
+  workspace: WorkspaceRefDto;
+
+  @ApiProperty({ example: 4 })
+  memberCount: number;
+
+  @ApiProperty({ example: false, description: 'Đã là thành viên bảng (mở thẳng bảng được)' })
+  isMember: boolean;
+}
+
+export class BoardPreviewResponseDto {
+  @ApiProperty({ type: BoardPreviewDto })
+  board: BoardPreviewDto;
 }

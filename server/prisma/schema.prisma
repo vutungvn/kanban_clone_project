@@ -32,6 +32,8 @@ model User {
   notifications     Notification[]     @relation("NotificationRecipient")
   sentNotifications Notification[]     @relation("NotificationActor")
   boardTemplates    BoardTemplate[]
+  workspaces        WorkspaceMember[]
+  createdWorkspaces Workspace[]
 
   @@map("users")
 }
@@ -76,6 +78,10 @@ model EmailToken {
 model Board {
   id                     String             @id @default(cuid())
   title                  String
+  // Không gian chứa bảng — mỗi bảng thuộc đúng 1 không gian. Quyền vào bảng vẫn chỉ theo BoardMember.
+  workspaceId            String
+  // PRIVATE: chỉ thành viên bảng thấy. WORKSPACE: thành viên không gian thấy bảng và tự tham gia được (thành MEMBER).
+  visibility             BoardVisibility    @default(WORKSPACE)
   // Key phông nền dựng sẵn — xem BOARD_BACKGROUNDS trong src/boards/boards.constants.ts
   background             String
   ownerId                String
@@ -88,6 +94,7 @@ model Board {
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
   owner                  User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  workspace              Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members                BoardMember[]
   joinRequests           BoardJoinRequest[]
   lists                  List[]
@@ -96,7 +103,50 @@ model Board {
   notifications          Notification[]
 
   @@index([ownerId])
+  @@index([workspaceId])
   @@map("boards")
+}
+
+enum WorkspaceRole {
+  ADMIN
+  MEMBER
+}
+
+// Không gian làm việc: nhóm bảng của 1 đội / công ty. Mỗi user luôn có ít nhất 1 không gian ("Không gian của <tên>",
+// tạo lúc đăng ký). Thành viên bảng không thuộc không gian = "khách" của không gian đó.
+model Workspace {
+  id          String            @id @default(cuid())
+  name        String
+  description String            @default("")
+  // Người tạo (giới hạn số không gian mỗi người tạo); null nếu tài khoản đã bị xoá
+  createdById String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  members     WorkspaceMember[]
+  boards      Board[]
+
+  @@index([createdById])
+  @@map("workspaces")
+}
+
+// User ↔ Workspace. Không gian luôn còn ít nhất 1 ADMIN.
+model WorkspaceMember {
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+enum BoardVisibility {
+  PRIVATE
+  WORKSPACE
 }
 
 enum BoardRole {
@@ -346,6 +396,10 @@ enum NotificationType {
   ROLE_CHANGED
   JOIN_REQUESTED
   JOIN_APPROVED
+  // Không gian làm việc — không gắn bảng (boardId null); data: { workspaceId, workspaceName, role? }
+  WORKSPACE_INVITED
+  WORKSPACE_ROLE_CHANGED
+  WORKSPACE_REMOVED
 }
 
 // Thông báo gửi tới 1 người. `data` chụp lại tên bảng / thẻ / trích đoạn bình luận... lúc tạo.

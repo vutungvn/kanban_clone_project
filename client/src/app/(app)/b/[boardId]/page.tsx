@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { BoardCanvas } from '@/components/board/board-canvas';
 import { BoardHeader } from '@/components/board/board-header';
 import { CardDetailModal, useCardParam } from '@/components/board/card-detail-modal';
+import { JoinBoardGate } from '@/components/board/join-board-gate';
 import { backgroundClass } from '@/lib/board-backgrounds';
 import { EMPTY_FILTER, filterCount, filterLists } from '@/lib/card-filter';
 import { cn } from '@/lib/cn';
@@ -32,12 +33,20 @@ export default function BoardPage() {
   if (status === 'loading') return <BoardLoading />;
 
   if (status === 'not-found') {
+    // Bảng chế độ Không gian mà mình thuộc không gian → cho tham gia; còn lại báo không tìm thấy
     return (
-      <CenteredMessage title="Không tìm thấy bảng" description="Bảng không tồn tại hoặc bạn không phải thành viên của bảng.">
-        <Link href="/boards" className="text-sm font-semibold text-brand hover:underline">
-          ← Về danh sách bảng
-        </Link>
-      </CenteredMessage>
+      <JoinBoardGate
+        key={boardId}
+        boardId={boardId}
+        onJoined={actions.reload}
+        notFound={
+          <CenteredMessage title="Không tìm thấy bảng" description="Bảng không tồn tại hoặc bạn không phải thành viên của bảng.">
+            <Link href="/boards" className="text-sm font-semibold text-brand hover:underline">
+              ← Về danh sách bảng
+            </Link>
+          </CenteredMessage>
+        }
+      />
     );
   }
 

@@ -14,7 +14,10 @@ export type NotificationType =
   | 'BOARD_INVITED'
   | 'ROLE_CHANGED'
   | 'JOIN_REQUESTED'
-  | 'JOIN_APPROVED';
+  | 'JOIN_APPROVED'
+  | 'WORKSPACE_INVITED'
+  | 'WORKSPACE_ROLE_CHANGED'
+  | 'WORKSPACE_REMOVED';
 
 /** Thông báo cá nhân. `data` chụp lại tên bảng / thẻ... lúc tạo (xem NotificationDto trên Swagger). */
 export interface Notification {
@@ -52,6 +55,7 @@ export const notificationsApi = {
 };
 
 const ROLE_LABEL: Record<BoardRole, string> = { ADMIN: 'Quản trị viên', MEMBER: 'Thành viên', VIEWER: 'Người xem' };
+// Vai trò không gian (ADMIN / MEMBER) trùng key + nhãn với vai trò bảng → dùng chung ROLE_LABEL
 
 /** Đoạn câu: `strong` = tên thẻ / bảng / vai trò in đậm. */
 export type Segment = { text: string; strong?: boolean };
@@ -67,6 +71,7 @@ export function describeNotification(n: Notification): Segment[] {
   const d = n.data;
   const card = { text: str(d.cardTitle), strong: true };
   const board = { text: str(d.boardTitle), strong: true };
+  const workspace = { text: str(d.workspaceName), strong: true };
   switch (n.type) {
     case 'CARD_ASSIGNED':
       return [{ text: 'đã giao cho bạn thẻ ' }, card];
@@ -104,6 +109,12 @@ export function describeNotification(n: Notification): Segment[] {
       return [{ text: 'muốn tham gia bảng ' }, board];
     case 'JOIN_APPROVED':
       return [{ text: 'đã duyệt yêu cầu tham gia bảng ' }, board, { text: ' của bạn' }];
+    case 'WORKSPACE_INVITED':
+      return [{ text: 'đã thêm bạn vào không gian ' }, workspace, { text: ' với vai trò ' }, { text: role(d.role), strong: true }];
+    case 'WORKSPACE_ROLE_CHANGED':
+      return [{ text: 'đã đổi vai trò của bạn trong không gian ' }, workspace, { text: ' thành ' }, { text: role(d.role), strong: true }];
+    case 'WORKSPACE_REMOVED':
+      return [{ text: 'đã xoá bạn khỏi không gian ' }, workspace];
     default:
       return [{ text: 'có cập nhật mới' }];
   }
@@ -121,6 +132,10 @@ export function notificationText(n: Notification) {
 
 /** Trang cần mở khi bấm vào thông báo. */
 export function notificationHref(n: Notification) {
+  // Bị xoá khỏi không gian → không còn mở được trang của không gian
+  if (n.type === 'WORKSPACE_INVITED' || n.type === 'WORKSPACE_ROLE_CHANGED') {
+    return typeof n.data.workspaceId === 'string' ? `/w/${n.data.workspaceId}` : null;
+  }
   if (!n.boardId) return null;
   return n.cardId ? `/b/${n.boardId}?card=${encodeURIComponent(n.cardId)}` : `/b/${n.boardId}`;
 }

@@ -1,9 +1,9 @@
 'use client';
 
-import { Archive, ChevronRight, LayoutTemplate, ListFilter, Lock, MoreHorizontal, SquareKanban, Trash2, UserPlus, X } from 'lucide-react';
+import { Archive, ChevronRight, LayoutTemplate, ListFilter, MoreHorizontal, SquareKanban, Trash2, UserPlus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Avatar, givenName } from '@/components/avatar';
+import { Avatar } from '@/components/avatar';
 import { BackgroundPicker } from '@/components/boards/background-picker';
 import { StarButton } from '@/components/boards/star-button';
 import { Popover, PopoverHeader, usePopoverAnchor } from '@/components/popover';
@@ -16,6 +16,7 @@ import { EMPTY_FILTER, filterCount, type CardFilter } from '@/lib/card-filter';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
 import { ArchiveModal } from './archive-modal';
+import { BoardPlacement } from './board-placement';
 import { CardFilterPopoverContent } from './card-filter-popover';
 import { InlineTitle } from './inline-title';
 import { ShareBoardModal } from './share-board-modal';
@@ -38,7 +39,6 @@ export function BoardHeader({
   onFilterChange: (filter: CardFilter) => void;
 }) {
   const isAdmin = board.role === 'ADMIN';
-  const owner = board.members.find((m) => m.role === 'ADMIN') ?? board.members[0];
   const menu = usePopoverAnchor();
   const filterMenu = usePopoverAnchor();
   const filtering = filterCount(filter) > 0;
@@ -65,12 +65,7 @@ export function BoardHeader({
           <SquareKanban size={18} />
           Bảng
         </span>
-        {owner && (
-          <span className="hidden items-center gap-1.5 rounded bg-white/10 px-2.5 py-1 text-xs text-white/90 md:flex">
-            <Lock size={14} className="text-white/70" />
-            Không gian của {givenName(owner.name)}
-          </span>
-        )}
+        <BoardPlacement board={board} actions={actions} />
       </div>
 
       <div className="flex shrink-0 items-center gap-2">

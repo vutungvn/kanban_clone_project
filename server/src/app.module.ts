@@ -15,6 +15,7 @@ import { SearchModule } from './search/search.module';
 import { TemplatesModule } from './templates/templates.module';
 import { StorageModule } from './storage/storage.module';
 import { UsersModule } from './users/users.module';
+import { WorkspacesModule } from './workspaces/workspaces.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { UsersModule } from './users/users.module';
     RemindersModule,
     SearchModule,
     TemplatesModule,
+    WorkspacesModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: HttpThrottlerGuard }],
