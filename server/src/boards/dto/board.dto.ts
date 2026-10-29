@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
-import { BoardRole } from '@prisma/client';
+import { BoardRole, BoardVisibility } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { trimString } from '../../common/transforms';
 import { WorkspaceRefDto } from '../../workspaces/dto/workspace.dto';
 import { BOARD_BACKGROUNDS, MAX_BOARD_TITLE, type BoardBackground } from '../boards.constants';
@@ -30,10 +30,19 @@ export class CreateBoardDto {
   @IsOptional()
   @IsString()
   workspaceId?: string;
+
+  @ApiPropertyOptional({
+    enum: BoardVisibility,
+    default: BoardVisibility.WORKSPACE,
+    description: 'PRIVATE: chỉ thành viên bảng thấy. WORKSPACE: thành viên không gian thấy và tự tham gia được',
+  })
+  @IsOptional()
+  @IsEnum(BoardVisibility, { message: 'Chế độ hiển thị phải là PRIVATE hoặc WORKSPACE' })
+  visibility?: BoardVisibility;
 }
 
-/** Mọi trường đều tuỳ chọn — chỉ gửi trường cần đổi (chưa chuyển bảng sang không gian khác được). */
-export class UpdateBoardDto extends PartialType(OmitType(CreateBoardDto, ['workspaceId'] as const)) {}
+/** Mọi trường đều tuỳ chọn — chỉ gửi trường cần đổi. `workspaceId` khác hiện tại = chuyển bảng sang không gian đó. */
+export class UpdateBoardDto extends PartialType(CreateBoardDto) {}
 
 export class StarBoardDto {
   @ApiProperty({ example: true })
@@ -87,6 +96,9 @@ export class BoardSummaryDto {
     description: 'Lần cuối user hiện tại mở bảng (cập nhật khi gọi GET /boards/{id})',
   })
   lastViewedAt: Date | null;
+
+  @ApiProperty({ enum: BoardVisibility, example: BoardVisibility.WORKSPACE })
+  visibility: BoardVisibility;
 
   @ApiProperty({ type: WorkspaceRefDto, description: 'Không gian chứa bảng (có thể là không gian mình không thuộc — khi đó mình là khách)' })
   workspace: WorkspaceRefDto;
@@ -145,4 +157,29 @@ export class BoardDetailResponseDto {
 export class StarResponseDto {
   @ApiProperty({ example: true })
   starred: boolean;
+}
+
+export class BoardPreviewDto {
+  @ApiProperty({ example: 'cmgboard0000vq8h3b1c2d4e' })
+  id: string;
+
+  @ApiProperty({ example: 'Chiến dịch Q4' })
+  title: string;
+
+  @ApiProperty({ enum: BOARD_BACKGROUNDS, example: 'green' })
+  background: string;
+
+  @ApiProperty({ type: WorkspaceRefDto })
+  workspace: WorkspaceRefDto;
+
+  @ApiProperty({ example: 4 })
+  memberCount: number;
+
+  @ApiProperty({ example: false, description: 'Đã là thành viên bảng (mở thẳng bảng được)' })
+  isMember: boolean;
+}
+
+export class BoardPreviewResponseDto {
+  @ApiProperty({ type: BoardPreviewDto })
+  board: BoardPreviewDto;
 }

@@ -18,6 +18,7 @@ import {
   type BoardDetail,
   type BoardMember,
   type BoardRole,
+  type BoardVisibility,
   type Card,
   type CardInput,
   type CopyCardInput,
@@ -386,6 +387,18 @@ export function useBoard(boardId: string) {
           (b) => ({ ...b, ...input }),
           async () => boardsStore.upsert(await boardsApi.update(boardId, input)),
         ),
+
+      /**
+       * Đổi chế độ hiển thị / chuyển bảng sang không gian khác (ADMIN). Chuyển không gian → tải lại ngầm
+       * để nhãn "Khách" của thành viên khớp không gian mới.
+       */
+      updatePlacement: async (input: { visibility?: BoardVisibility; workspaceId?: string }) => {
+        const summary = await boardsApi.update(boardId, input);
+        boardsStore.upsert(summary);
+        const current = boardRef.current;
+        if (current) commit({ ...current, visibility: summary.visibility, workspace: summary.workspace });
+        if (input.workspaceId) resync();
+      },
 
       deleteBoard: async () => {
         await boardsApi.remove(boardId);

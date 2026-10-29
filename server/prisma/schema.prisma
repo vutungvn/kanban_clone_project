@@ -80,6 +80,8 @@ model Board {
   title                  String
   // Không gian chứa bảng — mỗi bảng thuộc đúng 1 không gian. Quyền vào bảng vẫn chỉ theo BoardMember.
   workspaceId            String
+  // PRIVATE: chỉ thành viên bảng thấy. WORKSPACE: thành viên không gian thấy bảng và tự tham gia được (thành MEMBER).
+  visibility             BoardVisibility    @default(WORKSPACE)
   // Key phông nền dựng sẵn — xem BOARD_BACKGROUNDS trong src/boards/boards.constants.ts
   background             String
   ownerId                String
@@ -140,6 +142,11 @@ model WorkspaceMember {
   @@id([workspaceId, userId])
   @@index([userId])
   @@map("workspace_members")
+}
+
+enum BoardVisibility {
+  PRIVATE
+  WORKSPACE
 }
 
 enum BoardRole {

@@ -28,6 +28,13 @@ export class CreateWorkspaceDto {
 /** Chỉ gửi trường cần đổi. */
 export class UpdateWorkspaceDto extends PartialType(CreateWorkspaceDto) {}
 
+export class DeleteWorkspaceDto {
+  @ApiProperty({ example: 'Đội Marketing', description: 'Gõ lại đúng tên không gian để xác nhận xoá' })
+  @IsString()
+  @IsNotEmpty({ message: 'Vui lòng nhập tên không gian để xác nhận' })
+  name: string;
+}
+
 // ===== Response =====
 
 /** Không gian kèm thông tin của user hiện tại. */
@@ -46,6 +53,9 @@ export class WorkspaceDto {
 
   @ApiProperty({ example: 3, description: 'Số thành viên của không gian' })
   memberCount: number;
+
+  @ApiProperty({ example: 5, description: 'Tổng số bảng của không gian (kể cả bảng riêng tư mình không tham gia)' })
+  boardCount: number;
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt: Date;
@@ -71,4 +81,23 @@ export class WorkspaceRefDto {
 
   @ApiProperty({ example: 'Đội Marketing' })
   name: string;
+}
+
+export class JoinableBoardDto {
+  @ApiProperty({ example: 'cmgboard0000vq8h3b1c2d4e' })
+  id: string;
+
+  @ApiProperty({ example: 'Chiến dịch Q4' })
+  title: string;
+
+  @ApiProperty({ example: 'green' })
+  background: string;
+
+  @ApiProperty({ example: 4 })
+  memberCount: number;
+}
+
+export class JoinableBoardsResponseDto {
+  @ApiProperty({ type: [JoinableBoardDto], description: 'Bảng chế độ Không gian mình chưa tham gia, theo tên' })
+  boards: JoinableBoardDto[];
 }

@@ -1,7 +1,6 @@
 'use client';
 
-import { Archive, ChevronRight, LayoutTemplate, ListFilter, Lock, MoreHorizontal, SquareKanban, Trash2, UserPlus, X } from 'lucide-react';
-import Link from 'next/link';
+import { Archive, ChevronRight, LayoutTemplate, ListFilter, MoreHorizontal, SquareKanban, Trash2, UserPlus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Avatar } from '@/components/avatar';
@@ -16,8 +15,8 @@ import type { BoardDetail, BoardMember } from '@/lib/boards-api';
 import { EMPTY_FILTER, filterCount, type CardFilter } from '@/lib/card-filter';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
-import { useWorkspaces } from '@/lib/workspaces-store';
 import { ArchiveModal } from './archive-modal';
+import { BoardPlacement } from './board-placement';
 import { CardFilterPopoverContent } from './card-filter-popover';
 import { InlineTitle } from './inline-title';
 import { ShareBoardModal } from './share-board-modal';
@@ -66,7 +65,7 @@ export function BoardHeader({
           <SquareKanban size={18} />
           Bảng
         </span>
-        <WorkspaceChip workspace={board.workspace} />
+        <BoardPlacement board={board} actions={actions} />
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
@@ -152,28 +151,6 @@ export function BoardHeader({
       {archiveOpen && <ArchiveModal board={board} actions={actions} onClose={() => setArchiveOpen(false)} />}
       {savingTemplate && <SaveTemplateModal board={board} onClose={() => setSavingTemplate(false)} />}
     </header>
-  );
-}
-
-/** Không gian chứa bảng: thuộc không gian → link sang trang không gian; không thuộc → mình là khách. */
-function WorkspaceChip({ workspace }: { workspace: BoardDetail['workspace'] }) {
-  const member = useWorkspaces().some((w) => w.id === workspace.id);
-  const className = 'hidden max-w-56 items-center gap-1.5 rounded bg-white/10 px-2.5 py-1 text-xs text-white/90 md:flex';
-  const content = (
-    <>
-      <Lock size={14} className="shrink-0 text-white/70" aria-label="Riêng tư" />
-      <span className="truncate">{workspace.name}</span>
-    </>
-  );
-  return member ? (
-    <Link href={`/w/${workspace.id}`} title={`Không gian ${workspace.name} · Bảng riêng tư: chỉ thành viên bảng thấy`} className={cn(className, 'transition-colors hover:bg-white/20')}>
-      {content}
-    </Link>
-  ) : (
-    <span title={`Bạn là khách của không gian ${workspace.name}`} className={className}>
-      {content}
-      <span className="shrink-0 rounded bg-white/20 px-1 text-[10px] font-medium">Khách</span>
-    </span>
   );
 }
 

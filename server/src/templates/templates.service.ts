@@ -95,6 +95,7 @@ export class TemplatesService {
             background: dto.background,
             ownerId: userId,
             workspaceId,
+            visibility: dto.visibility,
             members: { create: { userId, role: BoardRole.ADMIN } },
             labels: { create: boardLabels(content) },
           },

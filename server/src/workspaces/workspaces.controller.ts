@@ -1,12 +1,19 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiAuth, ApiForbidden, ApiNotFound, ApiValidationError } from '../common/swagger/api-responses';
-import { CreateWorkspaceDto, UpdateWorkspaceDto, WorkspaceResponseDto, WorkspacesResponseDto } from './dto/workspace.dto';
+import {
+  CreateWorkspaceDto,
+  DeleteWorkspaceDto,
+  JoinableBoardsResponseDto,
+  UpdateWorkspaceDto,
+  WorkspaceResponseDto,
+  WorkspacesResponseDto,
+} from './dto/workspace.dto';
 import { WORKSPACE_ADMIN_ONLY, WORKSPACE_NOT_FOUND } from './workspace-access.service';
-import { TOO_MANY_WORKSPACES, WorkspacesService } from './workspaces.service';
+import { CONFIRM_NAME_MISMATCH, TOO_MANY_WORKSPACES, WorkspacesService } from './workspaces.service';
 
 const NOT_FOUND_DESCRIPTION = 'Không tồn tại hoặc bạn không phải thành viên của không gian';
 
@@ -53,5 +60,31 @@ export class WorkspacesController {
   @Patch(':id')
   async update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateWorkspaceDto) {
     return { workspace: await this.workspaces.update(id, user.id, dto) };
+  }
+
+  @ApiOperation({ summary: 'Bảng có thể tham gia', description: 'Bảng chế độ Không gian của không gian mà mình chưa là thành viên.' })
+  @ApiParam({ name: 'id', description: 'ID không gian' })
+  @ApiOkResponse({ type: JoinableBoardsResponseDto })
+  @ApiNotFound(WORKSPACE_NOT_FOUND, NOT_FOUND_DESCRIPTION)
+  @Get(':id/joinable-boards')
+  async joinableBoards(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return { boards: await this.workspaces.joinableBoards(id, user.id) };
+  }
+
+  @ApiOperation({
+    summary: 'Xoá không gian',
+    description:
+      'Chỉ quản trị viên; gửi lại đúng tên không gian để xác nhận. Xoá vĩnh viễn MỌI bảng của không gian (kể cả riêng tư) ' +
+      'cùng thẻ, tệp đính kèm, hoạt động. Mẫu bảng không bị ảnh hưởng.',
+  })
+  @ApiParam({ name: 'id', description: 'ID không gian' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { deletedBoards: { type: 'number', example: 3 } } } })
+  @ApiValidationError([CONFIRM_NAME_MISMATCH])
+  @ApiForbidden(WORKSPACE_ADMIN_ONLY, 'Chỉ là thành viên, không phải quản trị viên')
+  @ApiNotFound(WORKSPACE_NOT_FOUND, NOT_FOUND_DESCRIPTION)
+  @HttpCode(HttpStatus.OK)
+  @Delete(':id')
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: DeleteWorkspaceDto) {
+    return this.workspaces.remove(id, user.id, dto);
   }
 }

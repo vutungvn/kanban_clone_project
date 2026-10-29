@@ -11,7 +11,8 @@ import { BOARD_BACKGROUNDS, type BoardBackground } from '@/lib/board-backgrounds
 import { boardsStore, type BoardSummary } from '@/lib/boards-store';
 import { cn } from '@/lib/cn';
 import { useWorkspaces } from '@/lib/workspaces-store';
-import { defaultWorkspaceId, WorkspaceSelect } from '@/components/workspaces/workspace-select';
+import { defaultWorkspaceId, VisibilitySelect, WorkspaceSelect } from '@/components/workspaces/workspace-select';
+import type { BoardVisibility } from '@/lib/boards-api';
 import { BackgroundPicker } from './background-picker';
 
 export function CreateBoardPopover({
@@ -48,6 +49,7 @@ function CreateBoardForm({
   // Danh sách không gian có thể tải xong sau khi mở form → chưa chọn thì lấy mặc định theo danh sách hiện có
   const [pickedWorkspace, setPickedWorkspace] = useState<string | null>(null);
   const workspaceId = pickedWorkspace ?? defaultWorkspaceId(workspaces, preferredWorkspaceId);
+  const [visibility, setVisibility] = useState<BoardVisibility>('WORKSPACE');
   const [title, setTitle] = useState('');
   const [background, setBackground] = useState<BoardBackground>('blue');
   const [pending, setPending] = useState(false);
@@ -60,7 +62,7 @@ function CreateBoardForm({
     setPending(true);
     setError(null);
     try {
-      const board = await boardsStore.create({ title: trimmed, background, workspaceId: workspaceId || undefined });
+      const board = await boardsStore.create({ title: trimmed, background, workspaceId: workspaceId || undefined, visibility });
       onCreated?.(board);
       onClose();
       // Giống Trello: tạo xong mở luôn bảng mới
@@ -96,6 +98,9 @@ function CreateBoardForm({
 
       <div className="mt-3">
         <WorkspaceSelect id="board-workspace" workspaces={workspaces} value={workspaceId} onChange={setPickedWorkspace} />
+      </div>
+      <div className="mt-3">
+        <VisibilitySelect id="board-visibility" value={visibility} onChange={setVisibility} />
       </div>
 
       {error && (

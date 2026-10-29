@@ -9,6 +9,8 @@ export interface Workspace {
   description: string;
   role: WorkspaceRole;
   memberCount: number;
+  /** Tổng số bảng của không gian (kể cả bảng riêng tư mình không tham gia) */
+  boardCount: number;
   createdAt: string;
   /** Lúc mình tham gia — danh sách sắp theo trường này (không gian cá nhân thường đứng đầu) */
   joinedAt: string;
@@ -52,7 +54,20 @@ export const workspacesApi = {
   create: (input: WorkspaceInput) => api<{ workspace: Workspace }>('/workspaces', send('POST', input)).then((r) => r.workspace),
   update: (id: string, input: Partial<WorkspaceInput>) =>
     api<{ workspace: Workspace }>(`/workspaces/${encodeURIComponent(id)}`, send('PATCH', input)).then((r) => r.workspace),
+  /** Bảng chế độ Không gian mình chưa tham gia */
+  joinableBoards: (id: string) =>
+    api<{ boards: JoinableBoard[] }>(`/workspaces/${encodeURIComponent(id)}/joinable-boards`).then((r) => r.boards),
+  /** `name`: gõ lại đúng tên không gian để xác nhận */
+  remove: (id: string, name: string) =>
+    api<{ deletedBoards: number }>(`/workspaces/${encodeURIComponent(id)}`, send('DELETE', { name })),
 };
+
+export interface JoinableBoard {
+  id: string;
+  title: string;
+  background: string;
+  memberCount: number;
+}
 
 const membersPath = (workspaceId: string, userId?: string) =>
   `/workspaces/${encodeURIComponent(workspaceId)}/members${userId ? `/${encodeURIComponent(userId)}` : ''}`;

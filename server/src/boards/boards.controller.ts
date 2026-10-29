@@ -16,6 +16,7 @@ import { BoardsService } from './boards.service';
 import {
   BoardArchiveResponseDto,
   BoardDetailResponseDto,
+  BoardPreviewResponseDto,
   BoardsResponseDto,
   BoardSummaryResponseDto,
   CreateBoardDto,
@@ -64,7 +65,39 @@ export class BoardsController {
     return { board: await this.boards.findOne(id, user.id) };
   }
 
-  @ApiOperation({ summary: 'Sửa bảng', description: 'Đổi tên và/hoặc phông nền. Chỉ ADMIN.' })
+  @ApiOperation({
+    summary: 'Xem trước bảng để tham gia',
+    description:
+      'Bảng chế độ WORKSPACE mà mình thuộc không gian (chưa là thành viên bảng) → tóm tắt để hiện màn "Tham gia bảng". ' +
+      'Đã là thành viên → isMember = true. Bảng riêng tư / không thuộc không gian → 404.',
+  })
+  @ApiParam({ name: 'id', description: 'ID bảng' })
+  @ApiOkResponse({ type: BoardPreviewResponseDto })
+  @ApiNotFound(BOARD_NOT_FOUND)
+  @Get(':id/preview')
+  async preview(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return { board: await this.boards.preview(id, user.id) };
+  }
+
+  @ApiOperation({
+    summary: 'Tham gia bảng (chế độ Không gian)',
+    description: 'Thành viên không gian tự tham gia bảng chế độ WORKSPACE với vai trò MEMBER. Đã là thành viên → trả về như cũ.',
+  })
+  @ApiParam({ name: 'id', description: 'ID bảng' })
+  @ApiOkResponse({ type: BoardSummaryResponseDto })
+  @ApiNotFound(BOARD_NOT_FOUND)
+  @HttpCode(HttpStatus.OK)
+  @Post(':id/join')
+  async join(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return { board: await this.boards.join(id, user.id) };
+  }
+
+  @ApiOperation({
+    summary: 'Sửa bảng',
+    description:
+      'Đổi tên, phông nền, chế độ hiển thị; `workspaceId` khác hiện tại = chuyển bảng sang không gian đó (phải là thành viên ' +
+      'không gian đích). Chỉ ADMIN của bảng.',
+  })
   @ApiParam({ name: 'id', description: 'ID bảng' })
   @ApiOkResponse({ type: BoardSummaryResponseDto })
   @ApiValidationError(['Tiêu đề bảng tối đa 100 ký tự'])

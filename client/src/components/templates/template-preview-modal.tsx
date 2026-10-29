@@ -14,7 +14,8 @@ import { cn } from '@/lib/cn';
 import { labelColor, labelDisplayName } from '@/lib/labels';
 import { templateMeta, templatesApi, type TemplateCard, type TemplateContent, type TemplateDetail } from '@/lib/templates-api';
 import { useWorkspaces } from '@/lib/workspaces-store';
-import { defaultWorkspaceId, WorkspaceSelect } from '@/components/workspaces/workspace-select';
+import { defaultWorkspaceId, VisibilitySelect, WorkspaceSelect } from '@/components/workspaces/workspace-select';
+import type { BoardVisibility } from '@/lib/boards-api';
 
 const MAX_BOARD_TITLE = 100;
 
@@ -61,6 +62,7 @@ function PreviewBody({ template, onClose }: { template: TemplateDetail; onClose:
   const workspaces = useWorkspaces();
   const [pickedWorkspace, setPickedWorkspace] = useState<string | null>(null);
   const workspaceId = pickedWorkspace ?? defaultWorkspaceId(workspaces);
+  const [visibility, setVisibility] = useState<BoardVisibility>('WORKSPACE');
   const [title, setTitle] = useState(template.title);
   const [background, setBackground] = useState<BoardBackground>(template.background);
   const [keepCards, setKeepCards] = useState(true);
@@ -79,6 +81,7 @@ function PreviewBody({ template, onClose }: { template: TemplateDetail; onClose:
         background,
         keepCards,
         workspaceId: workspaceId || undefined,
+        visibility,
       });
       toast.success(`Đã tạo bảng "${board.title}" từ mẫu`);
       onClose();
@@ -121,6 +124,7 @@ function PreviewBody({ template, onClose }: { template: TemplateDetail; onClose:
           {!trimmed && <p className="mt-1.5 text-xs text-ink-subtle">👋 Tiêu đề bảng là bắt buộc</p>}
         </div>
         <WorkspaceSelect id="template-board-workspace" workspaces={workspaces} value={workspaceId} onChange={setPickedWorkspace} />
+        <VisibilitySelect id="template-board-visibility" value={visibility} onChange={setVisibility} />
         <BackgroundPicker value={background} onChange={setBackground} />
         <label className="flex cursor-pointer items-start gap-2 text-sm text-ink">
           <input type="checkbox" checked={keepCards} onChange={(e) => setKeepCards(e.target.checked)} className="mt-0.5 h-4 w-4 accent-brand" />

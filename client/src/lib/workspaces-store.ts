@@ -76,6 +76,13 @@ export const workspacesStore = {
     setState({ workspaces: state.workspaces.map((w) => (w.id === id ? workspace : w)) });
     return workspace;
   },
+
+  /** Xoá không gian (gõ lại tên để xác nhận) — mọi bảng của không gian bị xoá theo. */
+  async remove(id: string, name: string) {
+    const result = await workspacesApi.remove(id, name);
+    setState({ workspaces: state.workspaces.filter((w) => w.id !== id) });
+    return result;
+  },
 };
 
 /** Trạng thái đầy đủ (status, error) — tự tải khi component mount. */

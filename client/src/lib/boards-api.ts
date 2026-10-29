@@ -27,6 +27,8 @@ export interface BoardSummary {
   createdAt: string;
   /** Lần cuối user hiện tại mở bảng */
   lastViewedAt: string | null;
+  /** PRIVATE: chỉ thành viên bảng thấy; WORKSPACE: thành viên không gian thấy và tự tham gia được */
+  visibility: BoardVisibility;
   /** Không gian chứa bảng — không thuộc không gian này thì mình là khách của nó */
   workspace: { id: string; name: string };
   members: BoardMember[];
@@ -231,11 +233,31 @@ export interface JoinRequest {
   createdAt: string;
 }
 
+export type BoardVisibility = 'PRIVATE' | 'WORKSPACE';
+
+export const VISIBILITY_OPTIONS: { value: BoardVisibility; label: string; description: string }[] = [
+  { value: 'WORKSPACE', label: 'Không gian', description: 'Mọi thành viên không gian thấy bảng và tự tham gia được' },
+  { value: 'PRIVATE', label: 'Riêng tư', description: 'Chỉ thành viên của bảng thấy bảng' },
+];
+
+/** Bảng chế độ Không gian mà mình chưa tham gia (xem trước trước khi tham gia) */
+export interface BoardPreview {
+  id: string;
+  title: string;
+  background: BoardBackground;
+  workspace: { id: string; name: string };
+  memberCount: number;
+  /** Đã là thành viên → mở thẳng bảng được */
+  isMember: boolean;
+}
+
 export interface BoardInput {
   title: string;
   background: BoardBackground;
-  /** Chỉ dùng khi tạo bảng; bỏ trống → không gian mình tham gia sớm nhất */
+  /** Bỏ trống khi tạo → không gian mình tham gia sớm nhất. Khi sửa: khác hiện tại = chuyển bảng sang không gian đó */
   workspaceId?: string;
+  /** Mặc định khi tạo: WORKSPACE */
+  visibility?: BoardVisibility;
 }
 
 const id = (value: string) => encodeURIComponent(value);
@@ -248,8 +270,10 @@ export const boardsApi = {
   list: () => api<{ boards: BoardSummary[] }>('/boards').then((r) => r.boards),
   get: (boardId: string) => api<{ board: BoardDetail }>(`/boards/${id(boardId)}`).then((r) => r.board),
   create: (input: BoardInput) => api<{ board: BoardSummary }>('/boards', send('POST', input)).then((r) => r.board),
-  update: (boardId: string, input: Partial<Omit<BoardInput, 'workspaceId'>>) =>
+  update: (boardId: string, input: Partial<BoardInput>) =>
     api<{ board: BoardSummary }>(`/boards/${id(boardId)}`, send('PATCH', input)).then((r) => r.board),
+  preview: (boardId: string) => api<{ board: BoardPreview }>(`/boards/${id(boardId)}/preview`).then((r) => r.board),
+  join: (boardId: string) => api<{ board: BoardSummary }>(`/boards/${id(boardId)}/join`, send('POST')).then((r) => r.board),
   remove: (boardId: string) => api<void>(`/boards/${id(boardId)}`, send('DELETE')),
   setStarred: (boardId: string, starred: boolean) =>
     api<{ starred: boolean }>(`/boards/${id(boardId)}/star`, send('PUT', { starred })),
