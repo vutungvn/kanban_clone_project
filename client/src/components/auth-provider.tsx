@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { authApi, LoginInput, RegisterInput, User } from '@/lib/auth';
 import { boardsStore } from '@/lib/boards-store';
+import { workspacesStore } from '@/lib/workspaces-store';
 import { disconnectSocket, getSocket } from '@/lib/realtime';
 
 interface AuthContextValue {
@@ -36,6 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (input: LoginInput) => {
     const { user } = await authApi.login(input);
     boardsStore.reset();
+    workspacesStore.reset();
     setUser(user);
   }, []);
 
@@ -49,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Dù server lỗi vẫn đưa người dùng về trang đăng nhập
     await authApi.logout().catch(() => undefined);
     boardsStore.reset(); // không để lộ bảng của tài khoản này cho người đăng nhập sau
+    workspacesStore.reset();
     disconnectSocket();
     setUser(null);
     router.replace('/login');
@@ -68,11 +71,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     // Phiên này bị đăng xuất từ thiết bị khác (hoặc đổi mật khẩu ở nơi khác)
     const onRevoked = () => void logout();
+    // Không gian vừa tạo / đổi tên (tab khác, quản trị viên khác) → tải lại cả bảng (tên không gian trên ô bảng)
+    const onWorkspacesChanged = () => {
+      void workspacesStore.load(true);
+      void boardsStore.load(true);
+    };
     socket.on('account:updated', onAccountUpdated);
     socket.on('session:revoked', onRevoked);
+    socket.on('workspaces:changed', onWorkspacesChanged);
     return () => {
       socket.off('account:updated', onAccountUpdated);
       socket.off('session:revoked', onRevoked);
+      socket.off('workspaces:changed', onWorkspacesChanged);
     };
   }, [userId, logout]);
 

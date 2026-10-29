@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { avatarUrl, fileNameOf, isImageType, type UploadedFileData } from '../storage/files';
 import { StorageService } from '../storage/storage.service';
+import { personalWorkspaceData } from '../workspaces/workspace-access.service';
 
 export const AVATAR_REQUIRED = 'Vui lòng chọn ảnh';
 export const AVATAR_NOT_IMAGE = 'Ảnh đại diện phải là JPG, PNG, GIF hoặc WEBP';
@@ -41,9 +42,14 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { id }, select: publicUserSelect });
   }
 
+  /** Tạo tài khoản kèm không gian cá nhân "Không gian của <tên>" (user là quản trị viên). */
   async create(data: { email: string; name: string; passwordHash: string }) {
     try {
-      return await this.prisma.user.create({ data, select: publicUserSelect });
+      return await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({ data, select: publicUserSelect });
+        await tx.workspace.create({ data: personalWorkspaceData(user.id, user.name) });
+        return user;
+      });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         throw new ConflictException('Email đã được sử dụng');

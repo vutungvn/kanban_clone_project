@@ -3,6 +3,7 @@ import { BoardRole, type BoardTemplate, type Prisma } from '@prisma/client';
 import { BoardAccessService } from '../boards/board-access.service';
 import { toSummary, withMembers } from '../boards/boards.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { WorkspaceAccessService } from '../workspaces/workspace-access.service';
 import { BUILTIN_TEMPLATES, findBuiltinTemplate } from './builtin-templates';
 import type { CreateBoardFromTemplateDto, SaveTemplateDto, UpdateTemplateDto } from './dto/template.dto';
 import {
@@ -56,6 +57,7 @@ export class TemplatesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: BoardAccessService,
+    private readonly workspaces: WorkspaceAccessService,
   ) {}
 
   async list(userId: string) {
@@ -84,6 +86,7 @@ export class TemplatesService {
   async createBoard(id: string, userId: string, dto: CreateBoardFromTemplateDto) {
     const { template } = await this.resolve(id, userId);
     const content = dto.keepCards ? template.content : withoutCards(template.content);
+    const workspaceId = await this.workspaces.forNewBoard(userId, dto.workspaceId);
     return this.prisma.$transaction(
       async (tx) => {
         const board = await tx.board.create({
@@ -91,6 +94,7 @@ export class TemplatesService {
             title: dto.title,
             background: dto.background,
             ownerId: userId,
+            workspaceId,
             members: { create: { userId, role: BoardRole.ADMIN } },
             labels: { create: boardLabels(content) },
           },

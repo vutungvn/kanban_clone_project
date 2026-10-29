@@ -1,9 +1,10 @@
 'use client';
 
 import { Archive, ChevronRight, LayoutTemplate, ListFilter, Lock, MoreHorizontal, SquareKanban, Trash2, UserPlus, X } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Avatar, givenName } from '@/components/avatar';
+import { Avatar } from '@/components/avatar';
 import { BackgroundPicker } from '@/components/boards/background-picker';
 import { StarButton } from '@/components/boards/star-button';
 import { Popover, PopoverHeader, usePopoverAnchor } from '@/components/popover';
@@ -15,6 +16,7 @@ import type { BoardDetail, BoardMember } from '@/lib/boards-api';
 import { EMPTY_FILTER, filterCount, type CardFilter } from '@/lib/card-filter';
 import { cn } from '@/lib/cn';
 import type { BoardActions } from '@/lib/use-board';
+import { useWorkspaces } from '@/lib/workspaces-store';
 import { ArchiveModal } from './archive-modal';
 import { CardFilterPopoverContent } from './card-filter-popover';
 import { InlineTitle } from './inline-title';
@@ -38,7 +40,6 @@ export function BoardHeader({
   onFilterChange: (filter: CardFilter) => void;
 }) {
   const isAdmin = board.role === 'ADMIN';
-  const owner = board.members.find((m) => m.role === 'ADMIN') ?? board.members[0];
   const menu = usePopoverAnchor();
   const filterMenu = usePopoverAnchor();
   const filtering = filterCount(filter) > 0;
@@ -65,12 +66,7 @@ export function BoardHeader({
           <SquareKanban size={18} />
           Bảng
         </span>
-        {owner && (
-          <span className="hidden items-center gap-1.5 rounded bg-white/10 px-2.5 py-1 text-xs text-white/90 md:flex">
-            <Lock size={14} className="text-white/70" />
-            Không gian của {givenName(owner.name)}
-          </span>
-        )}
+        <WorkspaceChip workspace={board.workspace} />
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
@@ -156,6 +152,28 @@ export function BoardHeader({
       {archiveOpen && <ArchiveModal board={board} actions={actions} onClose={() => setArchiveOpen(false)} />}
       {savingTemplate && <SaveTemplateModal board={board} onClose={() => setSavingTemplate(false)} />}
     </header>
+  );
+}
+
+/** Không gian chứa bảng: thuộc không gian → link sang trang không gian; không thuộc → mình là khách. */
+function WorkspaceChip({ workspace }: { workspace: BoardDetail['workspace'] }) {
+  const member = useWorkspaces().some((w) => w.id === workspace.id);
+  const className = 'hidden max-w-56 items-center gap-1.5 rounded bg-white/10 px-2.5 py-1 text-xs text-white/90 md:flex';
+  const content = (
+    <>
+      <Lock size={14} className="shrink-0 text-white/70" aria-label="Riêng tư" />
+      <span className="truncate">{workspace.name}</span>
+    </>
+  );
+  return member ? (
+    <Link href={`/w/${workspace.id}`} title={`Không gian ${workspace.name} · Bảng riêng tư: chỉ thành viên bảng thấy`} className={cn(className, 'transition-colors hover:bg-white/20')}>
+      {content}
+    </Link>
+  ) : (
+    <span title={`Bạn là khách của không gian ${workspace.name}`} className={className}>
+      {content}
+      <span className="shrink-0 rounded bg-white/20 px-1 text-[10px] font-medium">Khách</span>
+    </span>
   );
 }
 

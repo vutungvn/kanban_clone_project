@@ -25,6 +25,8 @@ export interface BoardSummary {
   createdAt: string;
   /** Lần cuối user hiện tại mở bảng */
   lastViewedAt: string | null;
+  /** Không gian chứa bảng — không thuộc không gian này thì mình là khách của nó */
+  workspace: { id: string; name: string };
   members: BoardMember[];
 }
 
@@ -230,6 +232,8 @@ export interface JoinRequest {
 export interface BoardInput {
   title: string;
   background: BoardBackground;
+  /** Chỉ dùng khi tạo bảng; bỏ trống → không gian mình tham gia sớm nhất */
+  workspaceId?: string;
 }
 
 const id = (value: string) => encodeURIComponent(value);
@@ -242,7 +246,7 @@ export const boardsApi = {
   list: () => api<{ boards: BoardSummary[] }>('/boards').then((r) => r.boards),
   get: (boardId: string) => api<{ board: BoardDetail }>(`/boards/${id(boardId)}`).then((r) => r.board),
   create: (input: BoardInput) => api<{ board: BoardSummary }>('/boards', send('POST', input)).then((r) => r.board),
-  update: (boardId: string, input: Partial<BoardInput>) =>
+  update: (boardId: string, input: Partial<Omit<BoardInput, 'workspaceId'>>) =>
     api<{ board: BoardSummary }>(`/boards/${id(boardId)}`, send('PATCH', input)).then((r) => r.board),
   remove: (boardId: string) => api<void>(`/boards/${id(boardId)}`, send('DELETE')),
   setStarred: (boardId: string, starred: boolean) =>

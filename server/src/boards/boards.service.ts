@@ -3,6 +3,7 @@ import { BoardMember, BoardRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { StorageService } from '../storage/storage.service';
+import { WorkspaceAccessService } from '../workspaces/workspace-access.service';
 import { BOARD_NOT_FOUND, BoardAccessService } from './board-access.service';
 import { DEFAULT_LABEL_COLORS } from './boards.constants';
 import { byPosition, cardInclude, listInclude, notArchived, toCard, toList } from './card-shape';
@@ -20,6 +21,7 @@ export const withMembers = {
     include: { user: { select: memberUserSelect } },
     orderBy: { joinedAt: 'asc' },
   },
+  workspace: { select: { id: true, name: true } },
 } as const satisfies Prisma.BoardInclude;
 
 const withListsAndCards = {
@@ -40,6 +42,7 @@ export function toSummary(board: BoardWithMembers, me: BoardMember) {
     role: me.role,
     createdAt: board.createdAt,
     lastViewedAt: me.lastViewedAt,
+    workspace: board.workspace,
     members: board.members.map(toMember),
   };
 }
@@ -51,6 +54,7 @@ export class BoardsService {
     private readonly access: BoardAccessService,
     private readonly realtime: RealtimeService,
     private readonly storage: StorageService,
+    private readonly workspaces: WorkspaceAccessService,
   ) {}
 
   async listForUser(userId: string) {
@@ -62,12 +66,15 @@ export class BoardsService {
     return memberships.map((m) => toSummary(m.board, m));
   }
 
+  /** Không chọn không gian → không gian mình tham gia sớm nhất (không còn không gian nào → tạo không gian cá nhân). */
   async create(userId: string, dto: CreateBoardDto) {
+    const workspaceId = await this.workspaces.forNewBoard(userId, dto.workspaceId);
     const board = await this.prisma.board.create({
       data: {
         title: dto.title,
         background: dto.background,
         ownerId: userId,
+        workspaceId,
         // Người tạo là quản trị viên của bảng
         members: { create: { userId, role: BoardRole.ADMIN } },
         // createdAt lệch nhau 1ms để nhãn giữ đúng thứ tự màu

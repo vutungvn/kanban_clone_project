@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { ActivitiesController } from './activities.controller';
 import { ActivitiesService } from './activities.service';
 import { AttachmentsController } from './attachments.controller';
@@ -26,7 +27,7 @@ import { MembersService } from './members.service';
 
 /** Bảng, thành viên, liên kết mời, danh sách, thẻ, nhãn, checklist, tệp đính kèm, hoạt động — gom chung vì luôn đi cùng nhau và dùng chung kiểm tra quyền. */
 @Module({
-  imports: [AuthModule, NotificationsModule],
+  imports: [AuthModule, NotificationsModule, WorkspacesModule],
   controllers: [
     BoardsController,
     MembersController,

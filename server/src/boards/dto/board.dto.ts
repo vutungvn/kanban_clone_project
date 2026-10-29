@@ -1,8 +1,9 @@
-import { ApiProperty, OmitType, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { BoardRole } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsIn, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { trimString } from '../../common/transforms';
+import { WorkspaceRefDto } from '../../workspaces/dto/workspace.dto';
 import { BOARD_BACKGROUNDS, MAX_BOARD_TITLE, type BoardBackground } from '../boards.constants';
 import { CardWithListDto } from './card.dto';
 import { LabelDto } from './label.dto';
@@ -21,10 +22,18 @@ export class CreateBoardDto {
   @ApiProperty({ enum: BOARD_BACKGROUNDS, example: 'blue', description: 'Key phông nền dựng sẵn' })
   @IsIn(BOARD_BACKGROUNDS, { message: `Phông nền phải là một trong: ${BOARD_BACKGROUNDS.join(', ')}` })
   background: BoardBackground;
+
+  @ApiPropertyOptional({
+    example: 'cmgws0000000vq8h3b1c2d4e',
+    description: 'Không gian chứa bảng (phải là thành viên). Bỏ trống → không gian mình tham gia sớm nhất',
+  })
+  @IsOptional()
+  @IsString()
+  workspaceId?: string;
 }
 
-/** Mọi trường đều tuỳ chọn — chỉ gửi trường cần đổi. */
-export class UpdateBoardDto extends PartialType(CreateBoardDto) {}
+/** Mọi trường đều tuỳ chọn — chỉ gửi trường cần đổi (chưa chuyển bảng sang không gian khác được). */
+export class UpdateBoardDto extends PartialType(OmitType(CreateBoardDto, ['workspaceId'] as const)) {}
 
 export class StarBoardDto {
   @ApiProperty({ example: true })
@@ -78,6 +87,9 @@ export class BoardSummaryDto {
     description: 'Lần cuối user hiện tại mở bảng (cập nhật khi gọi GET /boards/{id})',
   })
   lastViewedAt: Date | null;
+
+  @ApiProperty({ type: WorkspaceRefDto, description: 'Không gian chứa bảng (có thể là không gian mình không thuộc — khi đó mình là khách)' })
+  workspace: WorkspaceRefDto;
 
   @ApiProperty({ type: [BoardMemberDto] })
   members: BoardMemberDto[];
