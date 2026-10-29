@@ -1,6 +1,7 @@
 'use client';
 
 import { LoaderCircle } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Popover, PopoverHeader } from '@/components/popover';
@@ -96,6 +97,13 @@ function CreateBoardForm({
         {pending && <LoaderCircle size={16} className="animate-spin" />}
         Tạo mới
       </button>
+      <Link
+        href="/templates"
+        onClick={onClose}
+        className="mt-2 flex h-9 w-full items-center justify-center rounded text-sm font-medium text-ink transition-colors hover:bg-surface-low"
+      >
+        Bắt đầu từ mẫu →
+      </Link>
     </form>
   );
 }

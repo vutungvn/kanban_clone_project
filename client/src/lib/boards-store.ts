@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { errorMessage } from './api';
 import { boardsApi, type BoardInput, type BoardSummary } from './boards-api';
+import { templatesApi } from './templates-api';
 
 export type { BoardSummary } from './boards-api';
 
@@ -74,6 +75,13 @@ export const boardsStore = {
 
   async create(input: BoardInput) {
     const board = await boardsApi.create(input);
+    boardsStore.upsert(board);
+    return board;
+  },
+
+  /** Tạo bảng từ mẫu (có sẵn hoặc của tôi). `keepCards` = false: chỉ danh sách + nhãn. */
+  async createFromTemplate(templateId: string, input: BoardInput & { keepCards: boolean }) {
+    const board = await templatesApi.createBoard(templateId, input);
     boardsStore.upsert(board);
     return board;
   },

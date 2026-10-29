@@ -31,6 +31,7 @@ model User {
   // Thông báo mình nhận / thông báo do mình gây ra
   notifications     Notification[]     @relation("NotificationRecipient")
   sentNotifications Notification[]     @relation("NotificationActor")
+  boardTemplates    BoardTemplate[]
 
   @@map("users")
 }
@@ -369,4 +370,23 @@ model Notification {
   @@index([userId, createdAt])
   @@index([userId, readAt])
   @@map("notifications")
+}
+
+// "Mẫu của tôi": bản chụp cấu trúc 1 bảng (danh sách, nhãn, thẻ, checklist) để tạo bảng mới. Chỉ người tạo thấy.
+// Bản chụp độc lập với bảng gốc: sửa / xoá bảng gốc không ảnh hưởng mẫu. Mẫu có sẵn nằm trong code (builtin-templates.ts).
+model BoardTemplate {
+  id          String   @id @default(cuid())
+  ownerId     String
+  title       String
+  description String   @default("")
+  // Key phông nền dựng sẵn (BOARD_BACKGROUNDS) — mặc định cho bảng tạo từ mẫu
+  background  String
+  // TemplateContent (src/templates/template-content.ts): thẻ trỏ tới nhãn bằng vị trí trong mảng labels
+  content     Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt])
+  @@map("board_templates")
 }

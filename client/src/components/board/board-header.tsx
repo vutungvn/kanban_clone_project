@@ -1,12 +1,13 @@
 'use client';
 
-import { Archive, ChevronRight, ListFilter, Lock, MoreHorizontal, SquareKanban, Trash2, UserPlus, X } from 'lucide-react';
+import { Archive, ChevronRight, LayoutTemplate, ListFilter, Lock, MoreHorizontal, SquareKanban, Trash2, UserPlus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Avatar, givenName } from '@/components/avatar';
 import { BackgroundPicker } from '@/components/boards/background-picker';
 import { StarButton } from '@/components/boards/star-button';
 import { Popover, PopoverHeader, usePopoverAnchor } from '@/components/popover';
+import { SaveTemplateModal } from '@/components/templates/save-template-modal';
 import { toast } from '@/components/toast';
 import { errorMessage } from '@/lib/api';
 import type { BoardBackground } from '@/lib/board-backgrounds';
@@ -43,6 +44,7 @@ export function BoardHeader({
   const filtering = filterCount(filter) > 0;
   const [sharing, setSharing] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 bg-black/25 px-4 text-white backdrop-blur-md">
@@ -143,11 +145,16 @@ export function BoardHeader({
             menu.close();
             setArchiveOpen(true);
           }}
+          onSaveTemplate={() => {
+            menu.close();
+            setSavingTemplate(true);
+          }}
         />
       </Popover>
 
       {sharing && <ShareBoardModal board={board} actions={actions} onClose={() => setSharing(false)} />}
       {archiveOpen && <ArchiveModal board={board} actions={actions} onClose={() => setArchiveOpen(false)} />}
+      {savingTemplate && <SaveTemplateModal board={board} onClose={() => setSavingTemplate(false)} />}
     </header>
   );
 }
@@ -180,11 +187,13 @@ function BoardMenuContent({
   actions,
   onClose,
   onOpenArchive,
+  onSaveTemplate,
 }: {
   board: BoardDetail;
   actions: BoardActions;
   onClose: () => void;
   onOpenArchive: () => void;
+  onSaveTemplate: () => void;
 }) {
   const router = useRouter();
   const isAdmin = board.role === 'ADMIN';
@@ -235,6 +244,17 @@ function BoardMenuContent({
         <span className="flex-1 text-left">Mục đã lưu trữ</span>
         <ChevronRight size={16} className="text-ink-subtle" />
       </button>
+      {/* Ai sửa được bảng (ADMIN, MEMBER) thì lưu được thành mẫu */}
+      {board.role !== 'VIEWER' && (
+        <button
+          type="button"
+          onClick={onSaveTemplate}
+          className="-mt-2 mb-3 flex w-full items-center gap-2 rounded px-2 py-2 text-sm transition-colors hover:bg-surface-low"
+        >
+          <LayoutTemplate size={16} className="text-ink-subtle" />
+          <span className="flex-1 text-left">Lưu thành mẫu</span>
+        </button>
+      )}
       <BackgroundPicker
         value={board.background}
         disabled={!isAdmin}
