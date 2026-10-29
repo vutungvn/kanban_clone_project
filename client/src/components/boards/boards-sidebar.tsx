@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  Award,
   ChevronDown,
   House,
   LayoutDashboard,
@@ -52,7 +51,7 @@ export function BoardsSidebar() {
   const isOpen = (id: string) => toggled[id] ?? id === current;
 
   return (
-    <aside className="sticky top-12 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col justify-between overflow-y-auto bg-card px-2 py-3 shadow-[0_1px_8px_rgba(0,0,0,0.04)] lg:flex">
+    <aside className="sticky top-12 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col overflow-y-auto bg-card px-2 py-3 shadow-[0_1px_8px_rgba(0,0,0,0.04)] lg:flex">
       <div>
         <nav aria-label="Điều hướng chính" className="flex flex-col gap-1">
           {MAIN_NAV.map((item) => (
@@ -106,15 +105,6 @@ export function BoardsSidebar() {
             </div>
           );
         })}
-      </div>
-
-      <div className="mt-4 flex items-center gap-2 rounded-lg bg-surface-low p-2.5">
-        <Award size={22} className="shrink-0 text-brand" />
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-ink">Nâng cấp Kanban</p>
-          <p className="text-xs text-ink-subtle">Mở khóa bảng vô hạn</p>
-        </div>
-        <ComingSoonBadge />
       </div>
 
       {creating && <CreateWorkspaceModal onClose={() => setCreating(false)} />}
